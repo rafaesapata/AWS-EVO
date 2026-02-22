@@ -15,7 +15,15 @@ import { getOrigin } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoExecutiveDashboard } from '../../lib/demo-data-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { cacheManager } from '../../lib/redis-cache.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
 import { z } from 'zod';
+
+const EXEC_DASHBOARD_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'financial', type: 'object', fields: ['mtdCost', 'ytdCost', 'netCost', 'budget'] },
+  { path: 'financial.topServices', type: 'array', fields: ['cost'] },
+  { path: 'financial.savings', type: 'object', fields: ['potential', 'costRecommendations', 'riSpRecommendations'] },
+  { path: 'summary', type: 'object', fields: ['mtdSpend', 'budget', 'potentialSavings'] },
+];
 
 // ============================================================================
 // TYPES
@@ -234,10 +242,8 @@ export async function handler(
         requestId: context.awsRequestId
       });
       
-      return success({
-        ...demoData,
-        _isDemo: true
-      }, 200, origin);
+      const demoWithOverhead = await applyOverhead(organizationId, { ...demoData, _isDemo: true }, EXEC_DASHBOARD_OVERHEAD_FIELDS);
+      return success(demoWithOverhead, 200, origin);
     }
 
     // 4. SWR Cache - return cached data instantly if fresh
@@ -245,7 +251,8 @@ export async function handler(
     const cached = await cacheManager.getSWR<ExecutiveDashboardResponse>(cacheKey, { prefix: 'dash' });
     if (cached && !cached.stale) {
       logger.info('Executive Dashboard cache hit (fresh)', { organizationId, cacheAge: cached.age });
-      return success({ ...cached.data, _fromCache: true, _cacheAge: cached.age }, 200, origin);
+      const cachedWithOverhead = await applyOverhead(organizationId, { ...cached.data, _fromCache: true, _cacheAge: cached.age }, EXEC_DASHBOARD_OVERHEAD_FIELDS);
+      return success(cachedWithOverhead, 200, origin);
     }
 
     // 5. Real data flow - Execute queries in parallel for performance
@@ -305,6 +312,8 @@ export async function handler(
     // 8. Save to SWR cache (freshFor: 120s = 2min, maxTTL: 24h)
     await cacheManager.setSWR(cacheKey, response, { prefix: 'dash', freshFor: 120, maxTTL: 86400 });
 
+    const responseWithOverhead = await applyOverhead(organizationId, response, EXEC_DASHBOARD_OVERHEAD_FIELDS);
+
     const executionTime = Date.now() - startTime;
     logger.info('Executive Dashboard generated', {
       organizationId,
@@ -313,7 +322,7 @@ export async function handler(
       requestId: context.awsRequestId
     });
 
-    return success(response, 200, origin);
+    return success(responseWithOverhead, 200, origin);
 
   } catch (err) {
     logger.error('Executive Dashboard error', err as Error, {

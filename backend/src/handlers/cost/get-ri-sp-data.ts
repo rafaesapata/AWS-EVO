@@ -11,6 +11,14 @@ import { getPrismaClient } from '../../lib/database.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoRISPAnalysis } from '../../lib/demo-data-service.js';
 import { cacheManager } from '../../lib/redis-cache.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const RISP_DATA_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'reservedInstances', type: 'object', fields: ['totalMonthlySavings'] },
+  { path: 'savingsPlans', type: 'object', fields: ['totalMonthlySavings'] },
+  { path: 'potentialSavings', type: 'object', fields: ['monthly', 'annual'] },
+  { path: 'executiveSummary', type: 'object', fields: ['potentialAnnualSavings'] },
+];
 
 const HOURS_PER_MONTH = 730;
 
@@ -48,11 +56,12 @@ export async function handler(
     if (isDemo === true) {
       logger.info('🎭 Returning demo RI/SP data', { organizationId });
       const demoData = generateDemoRISPAnalysis();
-      return success({
+      const demoWithOverhead = await applyOverhead(organizationId, {
         ...demoData,
         success: true,
         hasData: true,
-      });
+      }, RISP_DATA_OVERHEAD_FIELDS);
+      return success(demoWithOverhead);
     }
     
     if (!accountId) {
@@ -64,7 +73,8 @@ export async function handler(
     const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
     if (cached && !cached.stale) {
       logger.info('RI/SP data cache hit (fresh)', { organizationId });
-      return success({ ...cached.data, _fromCache: true });
+      const cachedWithOverhead = await applyOverhead(organizationId, { ...cached.data, _fromCache: true }, RISP_DATA_OVERHEAD_FIELDS);
+      return success(cachedWithOverhead);
     }
 
     // Verify account belongs to organization
@@ -276,7 +286,8 @@ export async function handler(
     // Save to SWR cache (freshFor: 600s = 10min, maxTTL: 24h)
     await cacheManager.setSWR(cacheKey, responseData, { prefix: 'cost', freshFor: 600, maxTTL: 86400 });
 
-    return success(responseData);
+    const responseWithOverhead = await applyOverhead(organizationId, responseData, RISP_DATA_OVERHEAD_FIELDS);
+    return success(responseWithOverhead);
     
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);

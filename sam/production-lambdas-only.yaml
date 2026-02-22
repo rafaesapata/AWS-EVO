@@ -2372,6 +2372,32 @@ Resources:
           - '@prisma/client'
           - '.prisma/client'
 
+  ManageCostOverheadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-cost-overhead'
+      CodeUri: ../backend/src/handlers/cost/
+      Handler: manage-cost-overhead.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/manage-cost-overhead
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - manage-cost-overhead.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+
   AiBudgetSuggestionFunction:
     Type: AWS::Serverless::Function
     Properties:

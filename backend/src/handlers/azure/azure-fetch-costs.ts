@@ -19,6 +19,12 @@ import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { z } from 'zod';
 import { fetchWithRetry, DEFAULT_AZURE_RETRY_CONFIG } from '../../lib/azure-retry.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const AZURE_COSTS_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'summary', type: 'object', fields: ['totalCost'] },
+  { path: 'costs', type: 'array', fields: ['cost'] },
+];
 
 // Constants
 const AZURE_MANAGEMENT_SCOPE = 'https://management.azure.com/.default';
@@ -624,7 +630,7 @@ export async function handler(
       return acc;
     }, {});
 
-    return success({
+    const azureCostResponse = {
       subscriptionId: credential.subscription_id,
       subscriptionName: credential.subscription_name,
       period: {
@@ -643,7 +649,18 @@ export async function handler(
       // Include costs data directly so frontend can use it even if DB save failed
       costs: costs.slice(0, 500),
       ...(firstSaveError ? { debug: { saveError: firstSaveError, sampleCost: costs[0] } } : {}),
-    });
+    };
+    const responseWithOverhead = await applyOverhead(organizationId, azureCostResponse, AZURE_COSTS_OVERHEAD_FIELDS);
+    // byService has dynamic keys with numeric values - apply same multiplier if overhead was applied
+    if (responseWithOverhead !== azureCostResponse && responseWithOverhead.byService) {
+      const multiplier = totalCost > 0 ? responseWithOverhead.summary.totalCost / totalCost : 1;
+      for (const key of Object.keys(responseWithOverhead.byService)) {
+        if (typeof responseWithOverhead.byService[key] === 'number') {
+          responseWithOverhead.byService[key] = Math.round(responseWithOverhead.byService[key] * multiplier * 100) / 100;
+        }
+      }
+    }
+    return success(responseWithOverhead);
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Failed to fetch Azure costs';
     const errorStack = err instanceof Error ? err.stack?.split('\n').slice(0, 3).join('\n') : undefined;

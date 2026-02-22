@@ -24,6 +24,12 @@ import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const AZURE_RESERVATIONS_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'summary', type: 'object', fields: ['totalMonthlySavings', 'totalUnusedValue'] },
+  { path: 'recommendations', type: 'array', fields: ['estimatedSavings', 'annualSavings', 'potentialSavings'] },
+];
 
 const reservationsSchema = z.object({
   credentialId: z.string().uuid('Invalid credential ID'),
@@ -311,7 +317,7 @@ export async function handler(
       totalSavings,
     });
 
-    return success({
+    const reservationsResponse = {
       reservations,
       recommendations,
       summary,
@@ -319,7 +325,9 @@ export async function handler(
       subscriptionName: credential.subscription_name,
       // Flag to indicate this is real data, not simulated
       dataSource: 'azure_api',
-    });
+    };
+    const reservationsWithOverhead = await applyOverhead(organizationId, reservationsResponse, AZURE_RESERVATIONS_OVERHEAD_FIELDS);
+    return success(reservationsWithOverhead);
   } catch (err: any) {
     logger.error('Error analyzing Azure reservations', { error: err.message, stack: err.stack });
     return error('Failed to analyze Azure reservations', 500);

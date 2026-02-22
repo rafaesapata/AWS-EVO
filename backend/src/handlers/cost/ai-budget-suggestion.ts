@@ -10,6 +10,12 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { parseEventBody } from '../../lib/request-parser.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const AI_BUDGET_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: '', type: 'object', fields: ['suggested_amount', 'previous_month_spend', 'total_proposed_savings'] },
+  { path: 'savings_breakdown', type: 'object', fields: ['cost_optimization', 'waste_detection', 'ri_sp_optimization'] },
+];
 
 /** Fator de realização: 75% dos savings propostos são realizáveis */
 const REALIZATION_FACTOR = 0.75;
@@ -98,7 +104,7 @@ export async function handler(
     // Se não há dados do mês anterior, retornar data_available: false
     if (previousMonthSpend <= 0) {
       logger.info('AI suggestion: no previous month data', { organizationId, provider, yearMonth });
-      return success({
+      const noDataResponse = {
         suggested_amount: 0,
         previous_month_spend: 0,
         total_proposed_savings: 0,
@@ -110,7 +116,8 @@ export async function handler(
         },
         calculation: 'Insufficient data from previous month',
         data_available: false,
-      } satisfies AISuggestionResponse);
+      } satisfies AISuggestionResponse;
+      return success(noDataResponse);
     }
 
     // 2. Savings propostos (últimos 30 dias)
@@ -183,7 +190,7 @@ export async function handler(
       previousMonthSpend, totalSavings, suggestedAmount,
     });
 
-    return success({
+    const mainResponse = {
       suggested_amount: suggestedAmount,
       previous_month_spend: previousMonthSpend,
       total_proposed_savings: totalSavings,
@@ -195,7 +202,9 @@ export async function handler(
       },
       calculation,
       data_available: true,
-    } satisfies AISuggestionResponse);
+    } satisfies AISuggestionResponse;
+    const responseWithOverhead = await applyOverhead(organizationId, mainResponse, AI_BUDGET_OVERHEAD_FIELDS);
+    return success(responseWithOverhead);
   } catch (err: any) {
     logger.error('ai-budget-suggestion error', err);
     return error('Failed to calculate AI budget suggestion', 500);

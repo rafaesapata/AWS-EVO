@@ -11,6 +11,14 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { cacheManager } from '../../lib/redis-cache.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const RISP_ANALYSIS_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'reservedInstances', type: 'object', fields: ['totalMonthlySavings'] },
+  { path: 'savingsPlans', type: 'object', fields: ['totalMonthlySavings'] },
+  { path: 'potentialSavings', type: 'object', fields: ['monthly', 'annual'] },
+  { path: 'executiveSummary', type: 'object', fields: ['potentialAnnualSavings'] },
+];
 
 interface GetRiSpAnalysisInput {
   accountId: string;
@@ -48,7 +56,8 @@ export async function handler(
     const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
     if (cached && !cached.stale) {
       logger.info('RI/SP analysis cache hit (fresh)', { organizationId, accountId });
-      return success({ ...cached.data, _fromCache: true, _cacheAge: cached.age });
+      const cachedWithOverhead = await applyOverhead(organizationId, { ...cached.data, _fromCache: true, _cacheAge: cached.age }, RISP_ANALYSIS_OVERHEAD_FIELDS);
+      return success(cachedWithOverhead);
     }
 
     // Fetch Reserved Instances
@@ -304,7 +313,8 @@ export async function handler(
     // Save to SWR cache (freshFor: 600s = 10min, maxTTL: 24h)
     await cacheManager.setSWR(cacheKey, response, { prefix: 'cost', freshFor: 600, maxTTL: 86400 });
 
-    return success(response);
+    const responseWithOverhead = await applyOverhead(organizationId, response, RISP_ANALYSIS_OVERHEAD_FIELDS);
+    return success(responseWithOverhead);
 
   } catch (err) {
     logger.error('Error fetching RI/SP analysis', err as Error);

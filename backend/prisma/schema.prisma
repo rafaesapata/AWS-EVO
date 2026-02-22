@@ -30,6 +30,9 @@ model Organization {
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   updated_at        DateTime @updatedAt @db.Timestamptz(6)
   
+  // Cost Overhead - Percentual de acréscimo nos custos exibidos
+  cost_overhead_percentage Decimal @default(0.00) @db.Decimal(5, 2)
+
   // Demo Mode - Modo de demonstração com dados fictícios
   demo_mode         Boolean  @default(false)
   demo_activated_at DateTime? @db.Timestamptz(6)

@@ -12,6 +12,12 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const COST_FORECAST_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'forecast', type: 'array', fields: ['predictedCost', 'lowerBound', 'upperBound'] },
+  { path: 'summary', type: 'object', fields: ['totalPredicted', 'avgDailyCost', 'avgHistoricalCost'] },
+];
 
 interface GenerateCostForecastRequest {
   accountId?: string;
@@ -49,7 +55,8 @@ export async function handler(
     const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
     if (isDemo === true) {
       logger.info('🎭 Returning demo cost forecast data', { organizationId });
-      return success(generateDemoCostForecast(forecastDays));
+      const demoWithOverhead = await applyOverhead(organizationId, generateDemoCostForecast(forecastDays), COST_FORECAST_OVERHEAD_FIELDS);
+      return success(demoWithOverhead);
     }
     
     // Buscar custos históricos dos últimos 90 dias
@@ -133,7 +140,7 @@ export async function handler(
     
     logger.info(`✅ Generated ${forecastDays}-day forecast: $${totalPredicted.toFixed(2)} total`);
     
-    return success({
+    const mainResponse = {
       success: true,
       forecast,
       summary: {
@@ -151,7 +158,10 @@ export async function handler(
         intercept: parseFloat(intercept.toFixed(2)),
         stdDev: parseFloat(stdDev.toFixed(2)),
       },
-    });
+    };
+    
+    const responseWithOverhead = await applyOverhead(organizationId, mainResponse, COST_FORECAST_OVERHEAD_FIELDS);
+    return success(responseWithOverhead);
     
   } catch (err) {
     logger.error('❌ Generate Cost Forecast error:', err);

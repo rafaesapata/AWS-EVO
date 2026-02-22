@@ -16,6 +16,12 @@ import { businessMetrics } from '../../lib/metrics.js';
 import { isOrganizationInDemoMode, generateDemoCostOptimizations } from '../../lib/demo-data-service.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { z } from 'zod';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const COST_OPT_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'optimizations', type: 'array', fields: ['current_cost', 'optimized_cost', 'savings'] },
+  { path: 'summary', type: 'object', fields: ['monthly_savings', 'annual_savings'] },
+];
 import { 
   EC2Client, 
   DescribeInstancesCommand, 
@@ -93,7 +99,8 @@ export const handler = safeHandler(async (
         optimizationsCount: demoData.optimizations.length 
       });
       
-      return success(demoData);
+      const demoWithOverhead = await applyOverhead(organizationId, demoData, COST_OPT_OVERHEAD_FIELDS);
+      return success(demoWithOverhead);
     }
     // =========================================================================
     
@@ -109,7 +116,8 @@ export const handler = safeHandler(async (
     const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
     if (cached && !cached.stale) {
       logger.info('Cost optimization cache hit (fresh)', { organizationId });
-      return success({ ...cached.data, _fromCache: true });
+      const cachedWithOverhead = await applyOverhead(organizationId, { ...cached.data, _fromCache: true }, COST_OPT_OVERHEAD_FIELDS);
+      return success(cachedWithOverhead);
     }
 
     const credential = await prisma.awsCredential.findFirst({
@@ -229,7 +237,8 @@ export const handler = safeHandler(async (
     // Save to SWR cache (freshFor: 600s = 10min, maxTTL: 24h)
     await cacheManager.setSWR(cacheKey, responseData, { prefix: 'cost', freshFor: 600, maxTTL: 86400 });
 
-    return success(responseData);
+    const responseWithOverhead = await applyOverhead(organizationId, responseData, COST_OPT_OVERHEAD_FIELDS);
+    return success(responseWithOverhead);
     
   } catch (err) {
     logger.error('Cost optimization error', err as Error, { organizationId });

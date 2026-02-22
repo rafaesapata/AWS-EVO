@@ -18,7 +18,14 @@ import { getHttpMethod, getOrigin } from '../../lib/middleware.js';
 import { fetchDailyCostsSchema, type FetchDailyCostsInput } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { isOrganizationInDemoMode, generateDemoCostData } from '../../lib/demo-data-service.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
 import { CostExplorerClient, GetCostAndUsageCommand } from '@aws-sdk/client-cost-explorer';
+
+const DAILY_COSTS_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'costs', type: 'array', fields: ['cost'] },
+  { path: 'data.dailyCosts', type: 'array', fields: ['cost'] },
+  { path: 'summary', type: 'object', fields: ['totalCost'] },
+];
 import { cacheManager } from '../../lib/redis-cache.js';
 
 export async function handler(
@@ -52,7 +59,7 @@ export async function handler(
       const demoCosts = generateDemoCostData(30);
       const totalCost = demoCosts.reduce((sum, c) => sum + c.cost, 0);
       
-      return success({
+      const demoResponse = {
         success: true,
         _isDemo: true,
         data: {
@@ -71,7 +78,9 @@ export async function handler(
           accountsProcessed: [{ id: 'demo-account', name: 'Demo AWS Account' }],
           incremental: false,
         },
-      });
+      };
+      const demoWithOverhead = await applyOverhead(organizationId, demoResponse, DAILY_COSTS_OVERHEAD_FIELDS);
+      return success(demoWithOverhead);
     }
     
     // Validar input com Zod usando parseAndValidateBody
@@ -149,7 +158,7 @@ export async function handler(
           totalCost: parseFloat(totalCost.toFixed(2)),
         });
         
-        return success({
+        const azureResponse = {
           success: true,
           cloudProvider: 'AZURE',
           data: {
@@ -172,7 +181,9 @@ export async function handler(
             }],
             incremental: false,
           },
-        });
+        };
+        const azureWithOverhead = await applyOverhead(organizationId, azureResponse, DAILY_COSTS_OVERHEAD_FIELDS);
+        return success(azureWithOverhead);
       }
     }
     
@@ -212,7 +223,8 @@ export async function handler(
     const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
     if (cached && !cached.stale) {
       logger.info('Daily costs cache hit (fresh)', { organizationId });
-      return success({ ...cached.data, _fromCache: true });
+      const cachedWithOverhead = await applyOverhead(organizationId, { ...cached.data, _fromCache: true }, DAILY_COSTS_OVERHEAD_FIELDS);
+      return success(cachedWithOverhead);
     }
     
     // Processar cada conta AWS
@@ -474,7 +486,8 @@ export async function handler(
     // Save to SWR cache (freshFor: 300s = 5min, maxTTL: 24h)
     await cacheManager.setSWR(cacheKey, responseData, { prefix: 'cost', freshFor: 300, maxTTL: 86400 });
 
-    return success(responseData);
+    const responseWithOverhead = await applyOverhead(organizationId, responseData, DAILY_COSTS_OVERHEAD_FIELDS);
+    return success(responseWithOverhead);
     
   } catch (err) {
     logger.error('Fetch Daily Costs error', err as Error, { requestId: context.awsRequestId });

@@ -20,6 +20,12 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { getAzureCredentialWithToken } from '../../lib/azure-helpers.js';
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const AZURE_ANOMALIES_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'summary.costMetrics', type: 'object', fields: ['totalCost', 'avgDailyCost', 'recentAvgDailyCost'] },
+  { path: 'anomalies', type: 'array', fields: ['expectedValue', 'actualValue', 'deviation'] },
+];
 
 // Validation schema
 const azureDetectAnomaliesSchema = z.object({
@@ -149,7 +155,7 @@ export async function handler(
       anomaliesFound: anomalies.length,
     });
 
-    return success({
+    const anomalyResponse = {
       subscriptionId,
       subscriptionName: credential.subscription_name,
       period: {
@@ -160,7 +166,9 @@ export async function handler(
       sensitivityLevel,
       summary,
       anomalies: anomalies.slice(0, 100), // Return top 100
-    });
+    };
+    const anomalyWithOverhead = await applyOverhead(organizationId, anomalyResponse, AZURE_ANOMALIES_OVERHEAD_FIELDS);
+    return success(anomalyWithOverhead);
   } catch (err: any) {
     logger.error('Error detecting Azure anomalies', { error: err.message, stack: err.stack });
     return error('Failed to detect anomalies', 500);

@@ -78,7 +78,9 @@ export type AuditAction =
   | 'TAG_MERGED'
   | 'TAG_RENAMED'
   | 'TAG_AUTO_RULE_CREATED'
-  | 'TAG_AUTO_RULES_EXECUTED';
+  | 'TAG_AUTO_RULES_EXECUTED'
+  | 'OVERHEAD_CREATED'
+  | 'OVERHEAD_UPDATED';
 
 export type AuditResourceType =
   | 'user'
@@ -112,7 +114,8 @@ export type AuditResourceType =
   | 'scan_schedule'
   | 'tag'
   | 'tag_policy'
-  | 'tag_auto_rule';
+  | 'tag_auto_rule'
+  | 'organization_overhead';
 
 export interface AuditLogParams {
   organizationId: string;

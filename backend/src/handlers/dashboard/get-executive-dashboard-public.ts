@@ -11,6 +11,14 @@ import { logger } from '../../lib/logger.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { z } from 'zod';
 import { cacheManager } from '../../lib/redis-cache.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const EXEC_DASHBOARD_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'financial', type: 'object', fields: ['mtdCost', 'ytdCost', 'netCost', 'budget'] },
+  { path: 'financial.topServices', type: 'array', fields: ['cost'] },
+  { path: 'financial.savings', type: 'object', fields: ['potential', 'costRecommendations', 'riSpRecommendations'] },
+  { path: 'summary', type: 'object', fields: ['mtdSpend', 'budget', 'potentialSavings'] },
+];
 
 // Validation schema - organizationId is required for public endpoint
 const requestSchema = z.object({
@@ -51,7 +59,8 @@ export async function handler(
     const cacheKey = `pub:${organizationId}:${params.trendPeriod}`;
     const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'dash' });
     if (cached && !cached.stale) {
-      return success({ ...cached.data, _fromCache: true }, 200, origin);
+      const cachedWithOverhead = await applyOverhead(organizationId, { ...cached.data, _fromCache: true }, EXEC_DASHBOARD_OVERHEAD_FIELDS);
+      return success(cachedWithOverhead, 200, origin);
     }
 
     const now = new Date();
@@ -92,6 +101,8 @@ export async function handler(
     // Save to SWR cache (freshFor: 120s, maxTTL: 24h)
     await cacheManager.setSWR(cacheKey, response, { prefix: 'dash', freshFor: 120, maxTTL: 86400 });
 
+    const responseWithOverhead = await applyOverhead(organizationId, response, EXEC_DASHBOARD_OVERHEAD_FIELDS);
+
     const executionTime = Date.now() - startTime;
     logger.info('Executive Dashboard Public generated', {
       organizationId,
@@ -99,7 +110,7 @@ export async function handler(
       executionTime
     });
 
-    return success(response, 200, origin);
+    return success(responseWithOverhead, 200, origin);
 
   } catch (err) {
     logger.error('Executive Dashboard Public error', err as Error);

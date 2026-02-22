@@ -22,6 +22,14 @@ import { isOrganizationInDemoMode, generateDemoRISPAnalysis } from '../../lib/de
 import { riSpAnalyzerSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { cacheManager } from '../../lib/redis-cache.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const RISP_ANALYZER_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: 'reservedInstances', type: 'object', fields: ['totalMonthlySavings'] },
+  { path: 'savingsPlans', type: 'object', fields: ['totalMonthlySavings'] },
+  { path: 'currentResources', type: 'object', fields: ['totalMonthlyCost'] },
+  { path: 'potentialSavings', type: 'object', fields: ['monthly', 'annual'] },
+];
 import { 
   EC2Client, 
   DescribeReservedInstancesCommand, 
@@ -188,13 +196,14 @@ export async function handler(
       
       const demoData = generateDemoRISPAnalysis();
       
-      return success({
+      const demoWithOverhead = await applyOverhead(organizationId, {
         ...demoData,
         _isDemo: true,
         status: 'completed',
         regions: ['us-east-1', 'us-west-2'],
         analysisDepth: 'comprehensive'
-      });
+      }, RISP_ANALYZER_OVERHEAD_FIELDS);
+      return success(demoWithOverhead);
     }
     
     // Validate request body
@@ -209,7 +218,8 @@ export async function handler(
     const riCached = await cacheManager.getSWR<any>(riCacheKey, { prefix: 'cost' });
     if (riCached && !riCached.stale) {
       logger.info('RI/SP Analyzer cache hit (fresh)', { organizationId, cacheAge: riCached.age });
-      return success({ ...riCached.data, _fromCache: true });
+      const cachedWithOverhead = await applyOverhead(organizationId, { ...riCached.data, _fromCache: true }, RISP_ANALYZER_OVERHEAD_FIELDS);
+      return success(cachedWithOverhead);
     }
     
     let regionsToAnalyze: string[] = [];
@@ -506,7 +516,8 @@ export async function handler(
     // Save to SWR cache (freshFor: 1800s = 30min, maxTTL: 24h)
     await cacheManager.setSWR(riCacheKey, responseData, { prefix: 'cost', freshFor: 1800, maxTTL: 86400 });
 
-    return success(responseData);
+    const responseWithOverhead = await applyOverhead(organizationId, responseData, RISP_ANALYZER_OVERHEAD_FIELDS);
+    return success(responseWithOverhead);
     
   } catch (err) {
     logger.error('❌ Advanced RI/SP Analyzer error:', err);

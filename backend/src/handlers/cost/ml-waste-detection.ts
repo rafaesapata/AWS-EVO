@@ -18,6 +18,12 @@ import { resolveAwsCredentials, toAwsCredentials } from '../../lib/aws-helpers.j
 import { logger } from '../../lib/logger.js';
 import { businessMetrics } from '../../lib/metrics.js';
 import { isOrganizationInDemoMode, generateDemoMLWasteDetection } from '../../lib/demo-data-service.js';
+import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+
+const ML_WASTE_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
+  { path: '', type: 'object', fields: ['total_monthly_savings', 'total_annual_savings'] },
+  { path: 'recommendations', type: 'array', fields: ['current_monthly_cost', 'current_hourly_cost', 'potential_monthly_savings', 'potential_annual_savings'] },
+];
 import { EC2Client, DescribeInstancesCommand, DescribeVolumesCommand, DescribeAddressesCommand, DescribeNatGatewaysCommand } from '@aws-sdk/client-ec2';
 import { RDSClient, DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda';
@@ -188,7 +194,8 @@ export const handler = safeHandler(async (
         isDemo: true 
       });
       
-      return success(demoData);
+      const demoWithOverhead = await applyOverhead(organizationId, demoData, ML_WASTE_OVERHEAD_FIELDS);
+      return success(demoWithOverhead);
     }
     // =========================================================================
     
@@ -424,7 +431,7 @@ export const handler = safeHandler(async (
       historyId
     });
 
-    return success({
+    const mainResponse = {
       success: true,
       analyzed_resources: totalAnalyzed,
       total_monthly_savings: parseFloat(totalMonthlySavings.toFixed(2)),
@@ -465,7 +472,9 @@ export const handler = safeHandler(async (
         execution_time: executionTime,
         aws_account_number: awsAccountNumber,
       },
-    });
+    };
+    const mainWithOverhead = await applyOverhead(organizationId, mainResponse, ML_WASTE_OVERHEAD_FIELDS);
+    return success(mainWithOverhead);
     
   } catch (err) {
     const { message: errorMessage, name: errorName } = extractError(err);

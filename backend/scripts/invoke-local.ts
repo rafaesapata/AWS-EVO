@@ -142,7 +142,7 @@ Options:
         break;
       }
       case '--verbose': case '-v':
-        result.verbose = true;
+        resultide.verbose = true;
         break;
       case '--tunnel': case '-t':
         // Already handled before arg parsing
