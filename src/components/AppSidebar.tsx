@@ -120,6 +120,7 @@ const menuItems: MenuItem[] = [
       { titleKey: "sidebar.notificationSettings", value: "notification-settings" },
       { titleKey: "sidebar.manageUsers", value: "users" },
       { titleKey: "sidebar.organizations", value: "organizations", superAdminOnly: true },
+      { titleKey: "sidebar.emailTemplates", value: "email-templates", superAdminOnly: true },
       { titleKey: "sidebar.scheduledJobs", value: "scheduled-jobs", superAdminOnly: true },
     ]
   },
@@ -175,6 +176,8 @@ export function AppSidebar({ activeTab, onTabChange, userRole }: AppSidebarProps
       navigate('/cloud-credentials');
     } else if (value === 'notification-settings') {
       navigate('/notification-settings');
+    } else if (value === 'email-templates') {
+      navigate('/email-templates');
     } else if (value === 'knowledge-base') {
       navigate('/knowledge-base');
     } else if (value === 'scheduled-jobs') {

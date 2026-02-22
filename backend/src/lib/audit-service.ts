@@ -80,7 +80,8 @@ export type AuditAction =
   | 'TAG_AUTO_RULE_CREATED'
   | 'TAG_AUTO_RULES_EXECUTED'
   | 'OVERHEAD_CREATED'
-  | 'OVERHEAD_UPDATED';
+  | 'OVERHEAD_UPDATED'
+  | 'COMMUNICATION_RESEND';
 
 export type AuditResourceType =
   | 'user'
@@ -115,7 +116,8 @@ export type AuditResourceType =
   | 'tag'
   | 'tag_policy'
   | 'tag_auto_rule'
-  | 'organization_overhead';
+  | 'organization_overhead'
+  | 'communication';
 
 export interface AuditLogParams {
   organizationId: string;

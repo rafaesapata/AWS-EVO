@@ -61,6 +61,7 @@ import AuditLogPage from "./pages/AuditLogPage";
 import AINotificationsAdmin from "./pages/admin/AINotificationsAdmin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import ApiDocs from "./pages/ApiDocs";
+import EmailTemplates from "./pages/EmailTemplates";
 import TagManagement from "./pages/TagManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./i18n/config";
@@ -466,6 +467,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <ProtectedRoute>
                     <TagManagement />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/email-templates" 
+                element={
+                  <ProtectedRoute>
+                    <EmailTemplates />
                   </ProtectedRoute>
                 } 
               />
