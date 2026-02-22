@@ -33,7 +33,7 @@ import {
   DeleteSubscriptionFilterCommand,
   DescribeSubscriptionFiltersCommand,
 } from '@aws-sdk/client-cloudwatch-logs';
-import { IAMClient, SimulatePrincipalPolicyCommand, GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand, UpdateAssumeRolePolicyCommand } from '@aws-sdk/client-iam';
+import { IAMClient, GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand, UpdateAssumeRolePolicyCommand } from '@aws-sdk/client-iam';
 
 // Filter modes for WAF log collection
 type LogFilterMode = 'block_only' | 'all_requests' | 'hybrid';
@@ -62,7 +62,6 @@ const SUBSCRIPTION_FILTER_RETRY_DELAY_MS = 5000;
 const POLICY_PROPAGATION_DELAY_MS = 3000;
 const IAM_PROPAGATION_DELAY_MS = 10000;
 const TRUST_POLICY_PROPAGATION_DELAY_MS = 5000;
-const AUTO_REMEDIATION_DELAY_MS = 5000;
 
 // Supported regions for WAF monitoring
 // Must include ALL regions where customers may have WAF resources
@@ -886,238 +885,6 @@ export const handler = safeHandler(async (
   }
 });
 
-// Required IAM permissions for WAF monitoring setup
-const WAF_MONITORING_REQUIRED_PERMISSIONS = [
-  'wafv2:GetWebACL',
-  'wafv2:GetLoggingConfiguration',
-  'wafv2:PutLoggingConfiguration',
-  'logs:CreateLogGroup',
-  'logs:PutResourcePolicy',
-  'logs:DescribeResourcePolicies',
-  'logs:PutSubscriptionFilter',
-  'logs:DescribeSubscriptionFilters',
-  'logs:DeleteSubscriptionFilter',
-  'logs:PutRetentionPolicy',
-];
-
-// Permissions scoped to aws-waf-logs-* log groups in the CloudFormation template.
-// SimulatePrincipalPolicy returns implicitDeny for these when tested with Resource: *,
-// so they must be simulated with matching resource ARNs.
-const LOGS_SCOPED_PERMISSIONS = [
-  'logs:CreateLogGroup',
-  'logs:PutSubscriptionFilter',
-  'logs:DeleteSubscriptionFilter',
-  'logs:DescribeSubscriptionFilters',
-  'logs:PutRetentionPolicy',
-];
-
-// Permissions that use Resource: * in the CloudFormation template
-const GLOBAL_PERMISSIONS = WAF_MONITORING_REQUIRED_PERMISSIONS.filter(
-  p => !LOGS_SCOPED_PERMISSIONS.includes(p)
-);
-
-/**
- * Pre-flight validation of IAM permissions for WAF monitoring.
- * Uses IAM SimulatePrincipalPolicy to check if the customer's IAM role
- * has all required permissions BEFORE attempting any operations.
- * 
- * If permissions are missing, attempts auto-remediation by adding an inline policy
- * to the customer's role (requires SelfUpdate policy from template v2.5.0+).
- * If auto-remediation succeeds, re-validates and continues.
- * If auto-remediation fails, throws an actionable error with CloudFormation update instructions.
- */
-async function validateWafPermissions(
-  credentials: any,
-  region: string,
-  customerAwsAccountId: string,
-  account: { role_arn?: string | null }
-): Promise<void> {
-  const roleArn = account.role_arn;
-  if (!roleArn) {
-    logger.warn('No role_arn available for permission pre-flight check, skipping validation');
-    return;
-  }
-  
-  const iamClient = new IAMClient({ region: 'us-east-1', credentials });
-  
-  const checkPermissions = async (): Promise<string[]> => {
-    const logGroupArn = `arn:aws:logs:${region}:${customerAwsAccountId}:log-group:aws-waf-logs-*`;
-    
-    const [globalResult, scopedResult] = await Promise.all([
-      iamClient.send(new SimulatePrincipalPolicyCommand({
-        PolicySourceArn: roleArn,
-        ActionNames: GLOBAL_PERMISSIONS,
-        // Do NOT pass ResourceArns for global permissions — SimulatePrincipalPolicy
-        // interprets ResourceArns: ['*'] as a literal ARN match, not a wildcard.
-        // Omitting ResourceArns simulates without resource context, which correctly
-        // evaluates policies that use Resource: '*'.
-      })),
-      iamClient.send(new SimulatePrincipalPolicyCommand({
-        PolicySourceArn: roleArn,
-        ActionNames: LOGS_SCOPED_PERMISSIONS,
-        ResourceArns: [logGroupArn],
-      })),
-    ]);
-    
-    const denied = [
-      ...(globalResult.EvaluationResults || []),
-      ...(scopedResult.EvaluationResults || []),
-    ]
-      .filter(r => r.EvalDecision !== 'allowed')
-      .map(r => r.EvalActionName!);
-    
-    return denied;
-  };
-  
-  try {
-    let denied = await checkPermissions();
-    
-    if (denied.length > 0) {
-      logger.warn('WAF monitoring permission pre-flight check failed, attempting auto-remediation', { 
-        roleArn, 
-        deniedPermissions: denied,
-        customerAwsAccountId 
-      });
-      
-      // Attempt auto-remediation: add missing permissions as inline policy
-      const remediated = await tryAutoRemediateWafPermissions(
-        credentials, customerAwsAccountId, roleArn, region
-      );
-      
-      if (remediated) {
-        // Re-validate after auto-remediation
-        logger.info('Auto-remediation succeeded, re-validating permissions');
-        denied = await checkPermissions();
-        
-        if (denied.length === 0) {
-          logger.info('WAF monitoring permission pre-flight check passed after auto-remediation', { 
-            roleArn, customerAwsAccountId 
-          });
-          return; // All good now
-        }
-        
-        logger.warn('Some permissions still denied after auto-remediation', { 
-          roleArn, stillDenied: denied 
-        });
-      }
-      
-      // Auto-remediation failed or insufficient — throw actionable error
-      logger.error('WAF monitoring permission pre-flight check failed (auto-remediation did not resolve)', { 
-        roleArn, deniedPermissions: denied, customerAwsAccountId 
-      });
-      
-      const err = createPermissionError(
-        `The IAM role is missing permissions required for WAF monitoring: ${denied.join(', ')}. ` +
-        `Automatic permission fix was attempted but could not resolve all issues. ` +
-        `Please update the CloudFormation stack: ${CF_UPDATE_INSTRUCTION} ` +
-        `The updated template (v2.5.0+) includes all required WAF monitoring permissions and enables automatic fixes.`,
-        'WAFPermissionPreFlightError'
-      );
-      throw err;
-    }
-    
-    logger.info('WAF monitoring permission pre-flight check passed', { 
-      roleArn, 
-      checkedPermissions: WAF_MONITORING_REQUIRED_PERMISSIONS.length 
-    });
-  } catch (err: any) {
-    // If it's our own pre-flight error, re-throw it
-    if (err.name === 'WAFPermissionPreFlightError' || err.name === 'EVOInfraProvisionError') {
-      throw err;
-    }
-    
-    // If SimulatePrincipalPolicy itself fails (e.g., no iam:SimulateCustomPolicy permission),
-    // log a warning but continue — the actual operations will fail with specific errors
-    logger.warn('WAF permission pre-flight check could not be performed (non-blocking)', { 
-      error: err.message,
-      errorName: err.name,
-      roleArn 
-    });
-  }
-}
-
-/**
- * Auto-remediate missing WAF permissions on the customer's IAM role.
- * Adds an inline policy with wafv2:PutLoggingConfiguration and wafv2:DeleteLoggingConfiguration.
- * 
- * This works for customers whose CloudFormation stack includes the SelfUpdate policy (v2.5.0+),
- * which grants iam:PutRolePolicy on the role itself.
- * For older stacks, this will fail gracefully and the user will see the CloudFormation update message.
- * 
- * @returns true if remediation succeeded, false if it failed
- */
-async function tryAutoRemediateWafPermissions(
-  credentials: any,
-  customerAwsAccountId: string,
-  roleArn: string,
-  region: string
-): Promise<boolean> {
-  try {
-    const iamClient = new IAMClient({ region: 'us-east-1', credentials });
-    
-    // Extract role name from ARN: arn:aws:iam::ACCOUNT:role/ROLE_NAME
-    const roleName = roleArn.split('/').pop();
-    if (!roleName) {
-      logger.warn('Could not extract role name from ARN', { roleArn });
-      return false;
-    }
-    
-    const policyDocument = JSON.stringify({
-      Version: '2012-10-17',
-      Statement: [
-        {
-          Sid: 'WAFLoggingConfiguration',
-          Effect: 'Allow',
-          Action: [
-            'wafv2:PutLoggingConfiguration',
-            'wafv2:DeleteLoggingConfiguration',
-            'wafv2:GetLoggingConfiguration',
-            'wafv2:ListLoggingConfigurations',
-          ],
-          Resource: '*',
-        },
-        {
-          Sid: 'CloudWatchLogsWAF',
-          Effect: 'Allow',
-          Action: [
-            'logs:CreateLogGroup',
-            'logs:PutSubscriptionFilter',
-            'logs:DeleteSubscriptionFilter',
-            'logs:DescribeSubscriptionFilters',
-            'logs:PutRetentionPolicy',
-            'logs:PutResourcePolicy',
-            'logs:DescribeResourcePolicies',
-            'logs:DeleteResourcePolicy',
-          ],
-          Resource: '*',
-        },
-      ],
-    });
-    
-    await iamClient.send(new PutRolePolicyCommand({
-      RoleName: roleName,
-      PolicyName: 'EVO-WAF-Monitoring-AutoFix',
-      PolicyDocument: policyDocument,
-    }));
-    
-    logger.info('Auto-remediation: added WAF monitoring permissions to customer role', {
-      roleName, customerAwsAccountId,
-    });
-    
-    // Wait for IAM propagation
-    await new Promise(resolve => setTimeout(resolve, AUTO_REMEDIATION_DELAY_MS));
-    
-    return true;
-  } catch (err: any) {
-    logger.warn('Auto-remediation failed (customer stack may be older than v2.5.0)', {
-      error: err.message,
-      errorName: err.name,
-      roleArn,
-    });
-    return false;
-  }
-}
-
 /** Context object for enableWafMonitoring to avoid long parameter lists */
 interface WafMonitoringContext {
   wafClient: WAFV2Client;
@@ -1204,15 +971,6 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     filterMode, region, customerAwsAccountId, account,
     organizationId, accountId, prisma, credentials,
   } = ctx;
-  
-  // PRE-FLIGHT: Validate IAM permissions before attempting any operations
-  // This catches outdated CloudFormation stacks that lack WAF monitoring permissions
-  logger.info('WAF setup step: PRE-FLIGHT starting', { 
-    organizationId, webAclArn, region, customerAwsAccountId, 
-    hasRoleArn: !!account.role_arn, roleArn: account.role_arn 
-  });
-  await validateWafPermissions(credentials, region, customerAwsAccountId, account);
-  logger.info('WAF setup step: PRE-FLIGHT passed', { organizationId, webAclArn });
   
   // Step 0: VALIDATE that the WAF Web ACL exists BEFORE doing anything
   // This prevents creating resources for non-existent WAFs
@@ -1709,32 +1467,6 @@ async function handleTestSetup(
   let customerAwsAccountId = account.role_arn?.split(':')[4] || webAclArn.split(':')[4];
   steps.push({ step: 'resolve-account-id', status: customerAwsAccountId ? 'ok' : 'fail', detail: customerAwsAccountId || 'Could not determine' });
   if (!customerAwsAccountId) return success({ steps });
-
-  // Test PRE-FLIGHT permissions
-  const roleArn = account.role_arn;
-  if (roleArn) {
-    try {
-      const iamClient = new IAMClient({ region: 'us-east-1', credentials });
-      const logGroupArn = `arn:aws:logs:${wafRegion}:${customerAwsAccountId}:log-group:aws-waf-logs-*`;
-      const [globalResult, scopedResult] = await Promise.all([
-        iamClient.send(new SimulatePrincipalPolicyCommand({
-          PolicySourceArn: roleArn, ActionNames: GLOBAL_PERMISSIONS,
-        })),
-        iamClient.send(new SimulatePrincipalPolicyCommand({
-          PolicySourceArn: roleArn, ActionNames: LOGS_SCOPED_PERMISSIONS, ResourceArns: [logGroupArn],
-        })),
-      ]);
-      const denied = [
-        ...(globalResult.EvaluationResults || []),
-        ...(scopedResult.EvaluationResults || []),
-      ].filter(r => r.EvalDecision !== 'allowed').map(r => `${r.EvalActionName}=${r.EvalDecision}`);
-      steps.push({ step: 'pre-flight-permissions', status: denied.length === 0 ? 'ok' : 'fail', detail: denied.length > 0 ? denied.join(', ') : 'All permissions OK' });
-    } catch (err: any) {
-      steps.push({ step: 'pre-flight-permissions', status: 'skip', detail: `SimulatePrincipalPolicy failed: ${err.message}` });
-    }
-  } else {
-    steps.push({ step: 'pre-flight-permissions', status: 'skip', detail: 'No role_arn' });
-  }
 
   // Test WAF exists
   const wafClient = new WAFV2Client({ region: wafRegion, credentials });
