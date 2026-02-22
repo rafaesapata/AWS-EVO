@@ -49,8 +49,13 @@ const WAF_GLOBAL_PERMISSIONS = [
   'wafv2:ListWebACLs',
   'logs:PutResourcePolicy',
   'logs:DescribeResourcePolicies',
-  // IAM permissions needed for WAF Service-Linked Role (SLR) management.
-  // Without the SLR, PutLoggingConfiguration fails with a misleading AccessDeniedException.
+] as const;
+
+// IAM permissions scoped to the WAF Service-Linked Role ARN in the CloudFormation template.
+// iam:CreateServiceLinkedRole → arn:aws:iam::ACCOUNT:role/aws-service-role/wafv2.amazonaws.com/*
+// iam:GetRole → arn:aws:iam::ACCOUNT:role/aws-service-role/wafv2.amazonaws.com/AWSServiceRoleForWAFV2Logging
+// Must be simulated with the specific SLR ARN, not Resource: *.
+const WAF_SLR_SCOPED_PERMISSIONS = [
   'iam:GetRole',
   'iam:CreateServiceLinkedRole',
 ] as const;
@@ -79,6 +84,7 @@ const WAF_CW_ROLE_SCOPED_PERMISSIONS = [
 const REQUIRED_PERMISSIONS: string[] = [
   ...CORE_PERMISSIONS,
   ...WAF_GLOBAL_PERMISSIONS,
+  ...WAF_SLR_SCOPED_PERMISSIONS,
   ...WAF_LOGS_SCOPED_PERMISSIONS,
   ...WAF_CW_ROLE_SCOPED_PERMISSIONS,
 ];
@@ -151,9 +157,11 @@ export const handler = safeHandler(async (
     // the EVO-CloudWatch-Logs-Role ARN in the CF template.
     const logsPermSet = new Set<string>(WAF_LOGS_SCOPED_PERMISSIONS as unknown as string[]);
     const cwRolePermSet = new Set<string>(WAF_CW_ROLE_SCOPED_PERMISSIONS as unknown as string[]);
-    const globalActions = actions.filter(a => !logsPermSet.has(a) && !cwRolePermSet.has(a));
+    const slrPermSet = new Set<string>(WAF_SLR_SCOPED_PERMISSIONS as unknown as string[]);
+    const globalActions = actions.filter(a => !logsPermSet.has(a) && !cwRolePermSet.has(a) && !slrPermSet.has(a));
     const logsScopedActions = actions.filter(a => logsPermSet.has(a));
     const cwRoleScopedActions = actions.filter(a => cwRolePermSet.has(a));
+    const slrScopedActions = actions.filter(a => slrPermSet.has(a));
     
     const awsAccountId = identityResponse.Account!;
     
@@ -183,6 +191,17 @@ export const handler = safeHandler(async (
           PolicySourceArn: principalArn,
           ActionNames: cwRoleScopedActions,
           ResourceArns: [cwRoleArn],
+        }))
+      );
+    }
+    
+    if (slrScopedActions.length > 0) {
+      const slrArn = `arn:aws:iam::${awsAccountId}:role/aws-service-role/wafv2.amazonaws.com/AWSServiceRoleForWAFV2Logging`;
+      simulationPromises.push(
+        iamClient.send(new SimulatePrincipalPolicyCommand({
+          PolicySourceArn: principalArn,
+          ActionNames: slrScopedActions,
+          ResourceArns: [slrArn],
         }))
       );
     }
