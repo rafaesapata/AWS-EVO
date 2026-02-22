@@ -159,6 +159,7 @@ const ALL_LAMBDAS = {
     { name: 'self-register', displayName: 'Self Register' },
   ],
   core: [
+    { name: 'query-table', displayName: 'Query Table' },
     { name: 'mutate-table', displayName: 'Mutate Table' },
     { name: 'bedrock-chat', displayName: 'Bedrock Chat' },
     { name: 'fetch-daily-costs', displayName: 'Fetch Daily Costs' },
@@ -215,6 +216,7 @@ const ALL_LAMBDAS = {
     { name: 'maintenance-auto-cleanup-stuck-scans', displayName: 'Maintenance Auto Cleanup' },
   ],
   dashboard: [
+    { name: 'get-executive-dashboard', displayName: 'Executive Dashboard' },
     { name: 'get-executive-dashboard-public', displayName: 'Executive Dashboard Public' },
     { name: 'manage-tv-tokens', displayName: 'Manage TV Tokens' },
     { name: 'alerts', displayName: 'Alerts' },
@@ -236,6 +238,7 @@ const ALL_LAMBDAS = {
     { name: 'test-lambda-metrics', displayName: 'Test Lambda Metrics' },
   ],
   ai: [
+    { name: 'intelligent-alerts-analyzer', displayName: 'Intelligent Alerts Analyzer' },
     { name: 'predict-incidents', displayName: 'Predict Incidents' },
     { name: 'detect-anomalies', displayName: 'Detect Anomalies' },
     { name: 'anomaly-detection', displayName: 'Anomaly Detection' },
@@ -250,6 +253,7 @@ const ALL_LAMBDAS = {
     { name: 'ai-prioritization', displayName: 'AI Prioritization' },
   ],
   license: [
+    { name: 'validate-license', displayName: 'Validate License' },
     { name: 'configure-license', displayName: 'Configure License' },
     { name: 'sync-license', displayName: 'Sync License' },
     { name: 'admin-sync-license', displayName: 'Admin Sync License' },
@@ -260,6 +264,7 @@ const ALL_LAMBDAS = {
     { name: 'retry-fallback-licenses', displayName: 'Retry Fallback Licenses' },
   ],
   kb: [
+    { name: 'kb-analytics-dashboard', displayName: 'KB Analytics Dashboard' },
     { name: 'kb-ai-suggestions', displayName: 'KB AI Suggestions' },
     { name: 'kb-export-pdf', displayName: 'KB Export PDF' },
     { name: 'increment-article-views', displayName: 'Increment Article Views' },
@@ -268,6 +273,7 @@ const ALL_LAMBDAS = {
     { name: 'kb-article-tracking', displayName: 'KB Article Tracking' },
   ],
   reports: [
+    { name: 'generate-pdf-report', displayName: 'Generate PDF Report' },
     { name: 'generate-excel-report', displayName: 'Generate Excel Report' },
     { name: 'generate-security-pdf', displayName: 'Generate Security PDF' },
     { name: 'security-scan-pdf-export', displayName: 'Security Scan PDF Export' },
@@ -276,6 +282,7 @@ const ALL_LAMBDAS = {
     { name: 'generate-ai-insights', displayName: 'Generate AI Insights' },
   ],
   organizations: [
+    { name: 'create-organization-account', displayName: 'Create Organization Account' },
     { name: 'sync-organization-accounts', displayName: 'Sync Organization Accounts' },
     { name: 'check-organization', displayName: 'Check Organization' },
     { name: 'create-with-organization', displayName: 'Create With Organization' },
@@ -293,6 +300,7 @@ const ALL_LAMBDAS = {
     { name: 'ses-webhook', displayName: 'SES Webhook' },
   ],
   storage: [
+    { name: 'storage-download', displayName: 'Storage Download' },
     { name: 'storage-delete', displayName: 'Storage Delete' },
     { name: 'upload-attachment', displayName: 'Upload Attachment' },
   ],
@@ -310,6 +318,7 @@ const ALL_LAMBDAS = {
     { name: 'db-init', displayName: 'DB Init' },
   ],
   integrations: [
+    { name: 'create-jira-ticket', displayName: 'Create Jira Ticket' },
     { name: 'create-remediation-ticket', displayName: 'Create Remediation Ticket' },
     { name: 'ticket-attachments', displayName: 'Ticket Attachments' },
     { name: 'ticket-management', displayName: 'Ticket Management' },

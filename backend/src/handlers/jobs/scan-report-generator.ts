@@ -139,17 +139,54 @@ async function sendReportEmails(
     logger.error('Failed to generate PDF report, sending email without attachment', pdfErr as Error, { scanId: payload.scanId });
   }
 
-  // Gerar HTML (agora só com resumo, sem findings detalhados)
+  // Gerar HTML: tenta template do DB primeiro, fallback para hardcoded
   let emailHtml: string;
   try {
+    const dbTemplate = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT html_body, subject, header_image_url FROM "EmailTemplate"
+       WHERE template_type = 'security_scan_report' AND is_active = true LIMIT 1`
+    );
+
+    if (dbTemplate.length > 0 && dbTemplate[0].html_body) {
+      logger.info('Using DB email template for security_scan_report');
+      const tpl = dbTemplate[0];
+      const vars: Record<string, string> = {
+        organizationName: report.organizationName,
+        accountName: report.accountName,
+        cloudProvider: report.cloudProvider,
+        scanType: report.scanType,
+        executedAt: report.executedAt.toISOString(),
+        executedDate: new Date(report.executedAt).toLocaleDateString('pt-BR'),
+        totalFindings: String(report.summary.total),
+        criticalCount: String(report.summary.critical),
+        highCount: String(report.summary.high),
+        mediumCount: String(report.summary.medium),
+        lowCount: String(report.summary.low),
+        platformUrl: `${PLATFORM_BASE_URL}/security-scans`,
+        headerImage: tpl.header_image_url || '',
+        newFindingsCount: String(report.comparison?.newFindings?.length || 0),
+        resolvedFindingsCount: String(report.comparison?.resolvedFindings?.length || 0),
+        persistentCount: String(report.comparison?.persistentCount || 0),
+        changePercentage: String(report.comparison?.changePercentage || 0),
+      };
+      emailHtml = tpl.html_body;
+      for (const [key, value] of Object.entries(vars)) {
+        emailHtml = emailHtml.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+      }
+    } else {
+      logger.info('No DB template found, using hardcoded template');
+      emailHtml = generateSecurityReportHtml({
+        report,
+        platformUrl: `${PLATFORM_BASE_URL}/security-scans`,
+      });
+    }
+    logger.info('Generated email HTML', { htmlLength: emailHtml.length });
+  } catch (templateErr) {
+    logger.error('Failed to generate email HTML from DB template, falling back to hardcoded', templateErr as Error, { scanId: payload.scanId });
     emailHtml = generateSecurityReportHtml({
       report,
       platformUrl: `${PLATFORM_BASE_URL}/security-scans`,
     });
-    logger.info('Generated email HTML', { htmlLength: emailHtml.length });
-  } catch (templateErr) {
-    logger.error('Failed to generate email HTML template', templateErr as Error, { scanId: payload.scanId });
-    throw templateErr;
   }
 
   // Montar attachment do PDF
