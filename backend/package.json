@@ -14,7 +14,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "invoke": "tsx scripts/invoke-local.ts"
+    "invoke": "tsx scripts/invoke-local.ts",
+    "serve": "tsx scripts/local-server.ts"
   },
   "dependencies": {
     "@aws-sdk/client-accessanalyzer": "^3.958.0",
@@ -91,7 +92,6 @@
     "bcryptjs": "^2.4.3",
     "dockerode": "^4.0.2",
     "ioredis": "^5.8.2",
-    "jsonwebtoken": "^9.0.2",
     "pdfkit": "^0.17.2",
     "pg": "^8.16.3",
     "zod": "^3.22.4"
@@ -100,11 +100,15 @@
     "@types/aws-lambda": "^8.10.130",
     "@types/bcryptjs": "^2.4.6",
     "@types/dockerode": "^3.3.23",
-    "@types/jsonwebtoken": "^9.0.5",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.9.0",
     "@types/pdfkit": "^0.17.4",
     "dotenv": "^17.2.3",
+    "express": "^5.2.1",
     "fast-check": "^4.5.3",
+    "jsonwebtoken": "^9.0.3",
+    "jwks-rsa": "^3.2.2",
     "prisma": "^5.7.0",
     "tsx": "^4.6.0",
     "typescript": "^5.2.2",

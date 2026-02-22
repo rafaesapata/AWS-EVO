@@ -102,4 +102,46 @@ A flag `--tunnel` carrega `backend/.env.tunnel` que aponta DATABASE_URL para `lo
 - Testar lógica de handlers antes de fazer push (evita esperar ~10min de deploy)
 - Debugar erros de parsing, validação, routing
 - Verificar que imports e dependências resolvem corretamente
-- Testar com DB real via SSM tunnel
+- Testar com DB real via SSH tunnel
+
+## Servidor Local (Frontend + Backend integrado)
+
+`backend/scripts/local-server.ts` — servidor Express que emula o API Gateway, roteando requests para os handlers Lambda. Permite usar o frontend React apontando pro backend local.
+
+### Como usar
+
+```bash
+# Terminal 1: tunnel SSH (se precisar de DB)
+./backend/scripts/db-tunnel.sh
+
+# Terminal 2: servidor backend local (porta 3001)
+npm run serve --prefix backend -- --tunnel
+
+# Terminal 3: frontend Vite (porta 8080, proxy automático para :3001)
+npm run dev
+```
+
+O Vite já tem proxy configurado: `/api/*` → `http://localhost:3001`. O frontend funciona normalmente — login via Cognito, JWT real decodificado pelo servidor local.
+
+### Options do servidor
+
+| Flag | Descrição |
+|------|-----------|
+| `--tunnel, -t` | Usar .env.tunnel (DB via SSH) |
+| `--port, -p` | Porta (default: 3001) |
+| `--no-auth` | Desabilitar JWT, usar claims fake |
+| `--user` | JSON com claims customizados |
+| `--verbose, -v` | Log detalhado por request |
+
+### Endpoints úteis
+
+- `GET http://localhost:3001/health` — status do servidor
+- `GET http://localhost:3001/routes` — lista todas as 167 rotas mapeadas
+
+### Como funciona
+
+1. Parseia `sam/production-lambdas-only.yaml` para extrair rotas automaticamente
+2. Cada request `/api/functions/{name}` é roteado pro handler correspondente
+3. JWT do Cognito é decodificado (sem validação de assinatura) para extrair claims
+4. Claims são passados no `event.requestContext.authorizer` como no API Gateway real
+5. Handlers são carregados via `tsx` direto do TypeScript (sem build)
