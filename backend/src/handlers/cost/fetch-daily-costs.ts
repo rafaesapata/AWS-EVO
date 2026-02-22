@@ -86,7 +86,8 @@ export async function handler(
       startDate: requestedStartDate, 
       endDate = getDateDaysAgo(0),
       granularity = 'DAILY',
-      incremental = true // Nova opção: busca incremental por padrão
+      incremental = true, // Nova opção: busca incremental por padrão
+      services, // Filter by service names (from tag-cost-services)
     } = parseResult.data as any;
     
     // Check if accountId is an Azure credential
@@ -120,6 +121,7 @@ export async function handler(
               gte: new Date(requestedStart),
               lte: new Date(endDate),
             },
+            ...(services && services.length > 0 && { service: { in: services } }),
           },
           orderBy: { date: 'desc' },
         });
@@ -205,7 +207,8 @@ export async function handler(
     const normalizedStart = requestedStart.split('T')[0]; // strip time component
     const normalizedEnd = endDate.split('T')[0];
     const normalizedAccountId = accountId || 'all';
-    const cacheKey = `daily:${organizationId}:${normalizedAccountId}:${normalizedStart}:${normalizedEnd}:${granularity}`;
+    const normalizedServices = services && services.length > 0 ? services.sort().join(',') : '';
+    const cacheKey = `daily:${organizationId}:${normalizedAccountId}:${normalizedStart}:${normalizedEnd}:${granularity}:${normalizedServices}`;
     const cached = await cacheManager.getSWR<any>(cacheKey, { prefix: 'cost' });
     if (cached && !cached.stale) {
       logger.info('Daily costs cache hit (fresh)', { organizationId });
@@ -421,6 +424,7 @@ export async function handler(
           gte: new Date(requestedStart),
           lte: new Date(endDate),
         },
+        ...(services && services.length > 0 && { service: { in: services } }),
       },
       orderBy: { date: 'desc' },
     });

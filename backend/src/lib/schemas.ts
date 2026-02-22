@@ -156,6 +156,7 @@ export const fetchDailyCostsSchema = z.object({
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   granularity: z.enum(['DAILY', 'MONTHLY']).default('DAILY'),
   incremental: z.boolean().default(true), // Busca incremental por padrão
+  services: z.array(z.string()).optional(), // Filter by service names (from tag-cost-services)
 });
 
 export const analyzeRiSpSchema = z.object({

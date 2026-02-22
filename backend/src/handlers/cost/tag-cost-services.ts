@@ -34,54 +34,42 @@ export async function handler(
 
     const prisma = getPrismaClient();
 
+    // Resolve accountId: frontend sends aws_credentials.id (UUID),
+    // but resource_tag_assignments uses the AWS account number
+    let awsAccountNumber: string | undefined;
+    if (accountId && accountId !== 'all') {
+      const cred = await prisma.awsCredential.findUnique({
+        where: { id: accountId },
+        select: { account_id: true },
+      });
+      awsAccountNumber = cred?.account_id || undefined;
+    }
+
     // AND logic: find resources that have ALL specified tags
     const resourceGroups = await prisma.resourceTagAssignment.groupBy({
       by: ['resource_id', 'resource_type', 'cloud_provider'],
       where: {
         organization_id: organizationId,
         tag_id: { in: tagIds },
-        ...(accountId && accountId !== 'all' ? { aws_account_id: accountId } : {}),
+        ...(awsAccountNumber ? { aws_account_id: awsAccountNumber } : {}),
       },
       having: {
         resource_id: { _count: { equals: tagIds.length } },
       },
     });
 
-    // Extract short service identifiers from resource_type (e.g., "aws:ec2:instance" → "ec2")
-    const shortNames = new Set<string>();
+    // resource_type in assignments already matches billing service names in daily_costs
+    // (e.g., "Amazon Relational Database Service", "EC2 - Other", "Amazon GuardDuty")
+    // Use them directly for exact matching
+    const serviceNames = new Set<string>();
     for (const group of resourceGroups) {
-      const parts = (group.resource_type || '').split(':');
-      if (parts.length >= 2) {
-        shortNames.add(parts[1].toLowerCase());
-      } else {
-        shortNames.add((group.resource_type || '').toLowerCase());
+      if (group.resource_type) {
+        serviceNames.add(group.resource_type);
       }
     }
 
-    // Map short identifiers to actual billing service names from daily_costs
-    // This ensures exact matching with cost data's service_breakdown keys
-    let billingServiceNames: string[] = [];
-    if (shortNames.size > 0) {
-      const shortArr = Array.from(shortNames);
-      // Build OR conditions to find billing services containing the short names
-      const orConditions = shortArr.map(s => ({
-        service: { contains: s, mode: 'insensitive' as const },
-      }));
-      const billingServices = await prisma.dailyCost.findMany({
-        where: {
-          organization_id: organizationId,
-          OR: orConditions,
-          ...(accountId && accountId !== 'all' ? { aws_account_id: accountId } : {}),
-        },
-        select: { service: true },
-        distinct: ['service'],
-      });
-      billingServiceNames = billingServices.map(s => s.service);
-    }
-
     return success({
-      services: billingServiceNames.length > 0 ? billingServiceNames : Array.from(shortNames),
-      shortNames: Array.from(shortNames),
+      services: Array.from(serviceNames),
       resourceCount: resourceGroups.length,
       tagCount: tagIds.length,
     }, 200, origin);

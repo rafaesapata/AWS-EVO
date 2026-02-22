@@ -344,21 +344,14 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
 
  // Filter by tags: match services associated with selected tags
  if (tagFilterIds.length > 0 && tagServices?.services && tagServices.services.length > 0) {
-   const tagServiceNames = tagServices.services.map((s: string) => s.toLowerCase());
-   const shortNames: string[] = (tagServices as any).shortNames?.map((s: string) => s.toLowerCase()) || [];
+   const tagServiceSet = new Set(tagServices.services.map((s: string) => s.toLowerCase()));
    filteredCosts = filteredCosts.map(cost => {
      if (!cost.service_breakdown) return null;
      // Filter service_breakdown to only include matching services
      const matchedBreakdown: Record<string, number> = {};
      let matchedTotal = 0;
      for (const [service, value] of Object.entries(cost.service_breakdown)) {
-       const serviceLower = service.toLowerCase();
-       const serviceNormalized = serviceLower
-         .replace('amazon ', '').replace('aws ', '');
-       // Match by exact billing name first, then by short name containment
-       const isMatch = tagServiceNames.some((ts: string) => serviceLower === ts || ts === serviceLower) ||
-         shortNames.some((sn: string) => serviceNormalized.includes(sn) || sn.includes(serviceNormalized));
-       if (isMatch) {
+       if (tagServiceSet.has(service.toLowerCase())) {
          matchedBreakdown[service] = value as number;
          matchedTotal += value as number;
        }
