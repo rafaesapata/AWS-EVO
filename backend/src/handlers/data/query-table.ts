@@ -100,6 +100,9 @@ const TABLE_TO_MODEL: Record<string, string> = {
   'scheduled_scans': 'scanSchedule',
   'resource_comments': 'resourceComment',
   'mention_notifications': 'mentionNotification',
+  'tv_dashboards': 'tvDashboard',
+  'dashboard_metrics_targets': 'dashboardMetricTarget',
+  'saved_filters': 'savedFilter',
 };
 
 // Mapeamento de campos do frontend para campos do Prisma
@@ -205,6 +208,8 @@ const TABLES_WITH_ORG_ID = new Set([
   'knowledge_base_favorites', 'knowledge_base_comments',
   // Resource comments and mentions
   'resource_comments', 'mention_notifications',
+  // TV Dashboards and saved filters
+  'tv_dashboards', 'dashboard_metrics_targets', 'saved_filters',
 ]);
 
 interface QueryRequest {
