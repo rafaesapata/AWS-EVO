@@ -170,6 +170,11 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
+                  - logs:PutDestination
+                  - logs:PutDestinationPolicy
+                  - logs:DescribeDestinations
+                  - logs:PutResourcePolicy
+                  - logs:DescribeResourcePolicies
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -207,6 +212,9 @@ Resources:
                   - lambda:Get*
                   - lambda:InvokeFunction
                   - lambda:UpdateFunctionConfiguration
+                  - lambda:CreateFunction
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
                   - wafv2:*
                 Resource: '*'
               - Effect: Allow
