@@ -1048,6 +1048,11 @@ export async function handler(
       const { ticketId } = body;
       if (!ticketId) return error('ticketId is required', 400, undefined, origin);
 
+      const ticket = await prisma.remediationTicket.findFirst({
+        where: { id: ticketId, organization_id: organizationId },
+      });
+      if (!ticket) return error('Ticket not found', 404, undefined, origin);
+
       await prisma.ticketWatcher.deleteMany({
         where: { ticket_id: ticketId, user_id: user.sub },
       });
@@ -1087,7 +1092,7 @@ export async function handler(
       // Get current statuses for transition validation
       const tickets = await prisma.remediationTicket.findMany({
         where: { id: { in: valid } },
-        select: { id: true, status: true },
+        select: { id: true, status: true, created_at: true },
       });
 
       const updated: string[] = [];
@@ -1103,7 +1108,7 @@ export async function handler(
         if (['resolved', 'closed'].includes(newStatus)) {
           updateData.resolved_at = new Date();
           updateData.time_to_resolution = Math.round(
-            (new Date().getTime() - new Date(ticket.status === 'open' ? Date.now() : Date.now()).getTime()) / 60000
+            (Date.now() - new Date(ticket.created_at).getTime()) / 60000
           );
         }
         if (newStatus === 'reopened') {
@@ -1197,6 +1202,13 @@ export async function handler(
           'priority_changed', 'priority', null, newPriority, 'Bulk priority change'
         );
       }
+
+      logAuditAsync({
+        organizationId, userId: user.sub, action: 'TICKET_UPDATE',
+        resourceType: 'ticket', resourceId: 'bulk',
+        details: { operation: 'bulk-change-priority', newPriority, count: valid.length },
+        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
+      });
 
       return success({ updated: valid, invalid, message: `Changed priority of ${valid.length} tickets` });
     }
@@ -1292,7 +1304,7 @@ export async function handler(
       const { severity, category, service } = body;
       const match = await findAssignment(prisma, organizationId, {
         severity, category, metadata: service ? { services: [service] } : undefined,
-      });
+      }, true);
 
       if (!match) return success({ match: null, message: 'No matching assignment rule found' });
 

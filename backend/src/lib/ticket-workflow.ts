@@ -54,7 +54,8 @@ export interface AssignmentRuleMatch {
 export async function findAssignment(
   prisma: any,
   organizationId: string,
-  ticket: { severity?: string; category?: string; metadata?: any }
+  ticket: { severity?: string; category?: string; metadata?: any },
+  dryRun = false
 ): Promise<AssignmentRuleMatch | null> {
   const rules = await prisma.assignmentRule.findMany({
     where: { organization_id: organizationId, is_active: true },
@@ -69,7 +70,9 @@ export async function findAssignment(
     // Check category match
     if (rule.match_category && rule.match_category !== ticket.category) continue;
     // Check service match
-    if (rule.match_service && services && !services.includes(rule.match_service)) continue;
+    if (rule.match_service) {
+      if (!services || !services.includes(rule.match_service)) continue;
+    }
 
     if (rule.strategy === 'specific_user' && rule.assign_to) {
       return { ruleId: rule.id, assignTo: rule.assign_to, ruleName: rule.name, strategy: 'specific_user' };
@@ -80,11 +83,13 @@ export async function findAssignment(
       const idx = rule.round_robin_index % pool.length;
       const assignTo = pool[idx];
 
-      // Increment round-robin index atomically
-      await prisma.assignmentRule.update({
-        where: { id: rule.id },
-        data: { round_robin_index: (rule.round_robin_index + 1) % pool.length },
-      });
+      // Increment round-robin index atomically (skip in dryRun)
+      if (!dryRun) {
+        await prisma.assignmentRule.update({
+          where: { id: rule.id },
+          data: { round_robin_index: (rule.round_robin_index + 1) % pool.length },
+        });
+      }
 
       return { ruleId: rule.id, assignTo, ruleName: rule.name, strategy: 'round_robin' };
     }
@@ -134,7 +139,7 @@ export async function getWatcherRecipients(
 
   // Also include assigned_to if they have a profile with email
   const ticket = await prisma.remediationTicket.findFirst({
-    where: { id: ticketId },
+    where: { id: ticketId, organization_id: organizationId },
     select: { assigned_to: true },
   });
 
