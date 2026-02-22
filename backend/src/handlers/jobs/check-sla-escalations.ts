@@ -11,6 +11,7 @@ import type { LambdaContext } from '../../types/lambda.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { EmailService } from '../../lib/email-service.js';
+import { getWatcherRecipients } from '../../lib/ticket-workflow.js';
 
 const PLATFORM_BASE_URL = process.env.PLATFORM_BASE_URL || 'https://evo.nuevacore.com';
 const MS_PER_MINUTE = 60_000;
@@ -262,6 +263,19 @@ async function sendSlaEmail(
       for (const admin of admins) {
         if (admin.email) recipientEmails.push(admin.email);
       }
+    }
+
+    // Include ticket watchers
+    try {
+      const eventType = type === 'warning' ? 'sla_warning' : type === 'breach' ? 'sla_breached' : 'escalated';
+      const watcherRecipients = await getWatcherRecipients(prisma, ticket.id, organizationId, eventType);
+      for (const w of watcherRecipients) {
+        if (w.email && !recipientEmails.includes(w.email)) {
+          recipientEmails.push(w.email);
+        }
+      }
+    } catch (watcherErr) {
+      logger.warn('Failed to get watcher recipients for SLA notification', { error: (watcherErr as Error).message });
     }
 
     // Also check org contact email

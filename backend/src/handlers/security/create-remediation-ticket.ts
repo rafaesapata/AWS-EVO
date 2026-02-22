@@ -11,6 +11,8 @@ import { parseAndValidateBody, createRemediationTicketSchema } from '../../lib/v
 import { logger } from '../../lib/logger.js';
 import { getOrigin } from '../../lib/middleware.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
+import { findAssignment, autoWatch } from '../../lib/ticket-workflow.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 export const handler = safeHandler(async (
   event: AuthorizedEvent,
@@ -150,6 +152,49 @@ export const handler = safeHandler(async (
       priority: calculatedPriority
     });
 
+    // Auto-assignment: find matching rule and assign
+    let assignedTo: string | null = null;
+    let assignedToName: string | null = null;
+    try {
+      const assignment = await findAssignment(prisma, organizationId, {
+        severity: calculatedPriority,
+        category: 'security',
+        metadata: ticket.metadata,
+      });
+      if (assignment) {
+        await prisma.remediationTicket.update({
+          where: { id: ticket.id },
+          data: { assigned_to: assignment.assignTo },
+        });
+        assignedTo = assignment.assignTo;
+
+        // Get assignee profile for auto-watch
+        const assigneeProfile = await prisma.profile.findFirst({
+          where: { id: assignment.assignTo, organization_id: organizationId },
+          select: { full_name: true, email: true },
+        });
+        assignedToName = assigneeProfile?.full_name || null;
+
+        // Auto-watch assignee
+        await autoWatch(prisma, ticket.id, assignment.assignTo, assigneeProfile?.full_name || null, assigneeProfile?.email || null);
+
+        logger.info('Ticket auto-assigned', { ticketId: ticket.id, assignTo: assignment.assignTo, rule: assignment.ruleName });
+      }
+    } catch (assignErr) {
+      logger.warn('Auto-assignment failed (non-critical)', { error: (assignErr as Error).message });
+    }
+
+    // Auto-watch creator
+    await autoWatch(prisma, ticket.id, user.sub, user.name || user.email, user.email);
+
+    // Audit log
+    logAuditAsync({
+      organizationId, userId: user.sub, action: 'TICKET_CREATE',
+      resourceType: 'ticket', resourceId: ticket.id,
+      details: { findingsCount: findings.length, priority: calculatedPriority, assignedTo },
+      ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
+    });
+
     return success({
       ticket: {
         id: ticket.id,
@@ -159,6 +204,8 @@ export const handler = safeHandler(async (
         status: ticket.status,
         created_at: ticket.created_at,
         findings_count: findings.length,
+        assigned_to: assignedTo,
+        assigned_to_name: assignedToName,
       },
       findings_updated: findings.length,
     }, 201, origin);

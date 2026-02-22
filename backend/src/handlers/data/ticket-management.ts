@@ -262,6 +262,17 @@ export async function handler(
         'commented', undefined, undefined, undefined, content.substring(0, 200)
       );
 
+      // Notify watchers of new comment (fire-and-forget)
+      getWatcherRecipients(prisma, ticketId, organizationId, 'commented', user.sub)
+        .then(recipients => {
+          if (recipients.length > 0) {
+            logger.info('Watcher notification targets for comment', {
+              ticketId, recipients: recipients.map(r => r.email), isInternal,
+            });
+          }
+        })
+        .catch(err => logger.warn('Watcher notification lookup failed', { error: (err as Error).message }));
+
       return success({ comment, message: 'Comment added successfully' });
     }
 
@@ -767,6 +778,15 @@ export async function handler(
 
       if (!ticket) return error('Ticket not found', 404);
 
+      // Validate state machine transition
+      if (!isValidTransition(ticket.status, status)) {
+        const allowed = getAllowedTransitions(ticket.status);
+        return error(
+          `Invalid transition: ${ticket.status} → ${status}. Allowed: ${allowed.join(', ')}`,
+          400, undefined, origin
+        );
+      }
+
       // Check if resolution is blocked by required checklist items
       if (['resolved', 'closed'].includes(status)) {
         const incompleteRequired = ticket.checklist_items.filter(
@@ -810,6 +830,24 @@ export async function handler(
         'status_changed', 'status', oldStatus, status, comment
       );
 
+      // Notify watchers (fire-and-forget)
+      getWatcherRecipients(prisma, ticketId, organizationId, 'status_changed', user.sub)
+        .then(recipients => {
+          if (recipients.length > 0) {
+            logger.info('Watcher notification targets for status change', {
+              ticketId, recipients: recipients.map(r => r.email), oldStatus, newStatus: status,
+            });
+          }
+        })
+        .catch(err => logger.warn('Watcher notification lookup failed', { error: (err as Error).message }));
+
+      logAuditAsync({
+        organizationId, userId: user.sub, action: 'TICKET_UPDATE',
+        resourceType: 'ticket', resourceId: ticketId,
+        details: { oldStatus, newStatus: status, comment },
+        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
+      });
+
       return success({ ticket: updatedTicket, message: 'Status updated successfully' });
     }
 
@@ -840,6 +878,7 @@ export async function handler(
               },
             },
           },
+          watchers: { orderBy: { created_at: 'asc' } },
         },
       });
 
@@ -874,6 +913,8 @@ export async function handler(
         slaStatus,
         commentsCount: ticket.comments.length,
         relationsCount: ticket.source_relations.length,
+        watchersCount: (ticket as any).watchers?.length || 0,
+        allowedTransitions: getAllowedTransitions(ticket.status),
       });
     }
 
@@ -910,6 +951,361 @@ export async function handler(
       });
 
       return success({ tickets });
+    }
+
+    // ==================== WATCHERS ====================
+
+    if (action === 'add-watcher') {
+      const { ticketId, userId: watchUserId, watchType } = body;
+      if (!ticketId || !watchUserId) return error('ticketId and userId are required', 400, undefined, origin);
+
+      const ticket = await prisma.remediationTicket.findFirst({
+        where: { id: ticketId, organization_id: organizationId },
+      });
+      if (!ticket) return error('Ticket not found', 404, undefined, origin);
+
+      // Get user profile for name/email
+      const profile = await prisma.profile.findFirst({
+        where: { id: watchUserId, organization_id: organizationId },
+        select: { id: true, email: true, full_name: true },
+      });
+      if (!profile) return error('User not found in organization', 404, undefined, origin);
+
+      const watcher = await prisma.ticketWatcher.upsert({
+        where: { ticket_id_user_id: { ticket_id: ticketId, user_id: watchUserId } },
+        create: {
+          ticket_id: ticketId,
+          user_id: watchUserId,
+          user_name: profile.full_name,
+          user_email: profile.email,
+          watch_type: watchType || 'all',
+        },
+        update: { watch_type: watchType || 'all' },
+      });
+
+      return success({ watcher, message: 'Watcher added successfully' });
+    }
+
+    if (action === 'remove-watcher') {
+      const { ticketId, userId: watchUserId } = body;
+      if (!ticketId || !watchUserId) return error('ticketId and userId are required', 400, undefined, origin);
+
+      const ticket = await prisma.remediationTicket.findFirst({
+        where: { id: ticketId, organization_id: organizationId },
+      });
+      if (!ticket) return error('Ticket not found', 404, undefined, origin);
+
+      await prisma.ticketWatcher.deleteMany({
+        where: { ticket_id: ticketId, user_id: watchUserId },
+      });
+
+      return success({ message: 'Watcher removed successfully' });
+    }
+
+    if (action === 'get-watchers') {
+      const { ticketId } = body;
+      if (!ticketId) return error('ticketId is required', 400, undefined, origin);
+
+      const ticket = await prisma.remediationTicket.findFirst({
+        where: { id: ticketId, organization_id: organizationId },
+      });
+      if (!ticket) return error('Ticket not found', 404, undefined, origin);
+
+      const watchers = await prisma.ticketWatcher.findMany({
+        where: { ticket_id: ticketId },
+        orderBy: { created_at: 'asc' },
+      });
+
+      return success({ watchers });
+    }
+
+    if (action === 'watch-ticket') {
+      // Shortcut: current user watches the ticket
+      const { ticketId, watchType } = body;
+      if (!ticketId) return error('ticketId is required', 400, undefined, origin);
+
+      const ticket = await prisma.remediationTicket.findFirst({
+        where: { id: ticketId, organization_id: organizationId },
+      });
+      if (!ticket) return error('Ticket not found', 404, undefined, origin);
+
+      const watcher = await prisma.ticketWatcher.upsert({
+        where: { ticket_id_user_id: { ticket_id: ticketId, user_id: user.sub } },
+        create: {
+          ticket_id: ticketId,
+          user_id: user.sub,
+          user_name: user.name || user.email,
+          user_email: user.email,
+          watch_type: watchType || 'all',
+        },
+        update: { watch_type: watchType || 'all' },
+      });
+
+      return success({ watcher, message: 'Now watching this ticket' });
+    }
+
+    if (action === 'unwatch-ticket') {
+      const { ticketId } = body;
+      if (!ticketId) return error('ticketId is required', 400, undefined, origin);
+
+      await prisma.ticketWatcher.deleteMany({
+        where: { ticket_id: ticketId, user_id: user.sub },
+      });
+
+      return success({ message: 'Stopped watching this ticket' });
+    }
+
+    // ==================== STATE MACHINE INFO ====================
+
+    if (action === 'get-allowed-transitions') {
+      const { ticketId } = body;
+      if (!ticketId) return error('ticketId is required', 400, undefined, origin);
+
+      const ticket = await prisma.remediationTicket.findFirst({
+        where: { id: ticketId, organization_id: organizationId },
+        select: { id: true, status: true },
+      });
+      if (!ticket) return error('Ticket not found', 404, undefined, origin);
+
+      const allowed = getAllowedTransitions(ticket.status);
+      return success({ currentStatus: ticket.status, allowedTransitions: allowed });
+    }
+
+    // ==================== BULK OPERATIONS ====================
+
+    if (action === 'bulk-update-status') {
+      const { ticketIds, status: newStatus, comment: bulkComment } = body;
+      if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
+        return error('ticketIds array is required', 400, undefined, origin);
+      }
+      if (!newStatus) return error('status is required', 400, undefined, origin);
+      if (ticketIds.length > 50) return error('Maximum 50 tickets per bulk operation', 400, undefined, origin);
+
+      const { valid, invalid } = await validateTicketOwnership(prisma, ticketIds, organizationId);
+      if (valid.length === 0) return error('No valid tickets found', 404, undefined, origin);
+
+      // Get current statuses for transition validation
+      const tickets = await prisma.remediationTicket.findMany({
+        where: { id: { in: valid } },
+        select: { id: true, status: true },
+      });
+
+      const updated: string[] = [];
+      const skipped: Array<{ id: string; reason: string }> = [];
+
+      for (const ticket of tickets) {
+        if (!isValidTransition(ticket.status, newStatus)) {
+          skipped.push({ id: ticket.id, reason: `Invalid transition: ${ticket.status} → ${newStatus}` });
+          continue;
+        }
+
+        const updateData: any = { status: newStatus === 'reopened' ? 'open' : newStatus };
+        if (['resolved', 'closed'].includes(newStatus)) {
+          updateData.resolved_at = new Date();
+          updateData.time_to_resolution = Math.round(
+            (new Date().getTime() - new Date(ticket.status === 'open' ? Date.now() : Date.now()).getTime()) / 60000
+          );
+        }
+        if (newStatus === 'reopened') {
+          updateData.resolved_at = null;
+          updateData.time_to_resolution = null;
+        }
+
+        await prisma.remediationTicket.update({ where: { id: ticket.id }, data: updateData });
+        await recordTicketHistory(
+          prisma, ticket.id, user.sub, user.name || user.email, user.email,
+          'status_changed', 'status', ticket.status, newStatus, bulkComment || 'Bulk status update'
+        );
+        updated.push(ticket.id);
+      }
+
+      logAuditAsync({
+        organizationId, userId: user.sub, action: 'TICKET_UPDATE',
+        resourceType: 'ticket', resourceId: 'bulk',
+        details: { operation: 'bulk-update-status', newStatus, updated: updated.length, skipped: skipped.length },
+        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
+      });
+
+      return success({ updated, skipped, invalid, message: `Updated ${updated.length} tickets` });
+    }
+
+    if (action === 'bulk-assign') {
+      const { ticketIds, assignTo } = body;
+      if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
+        return error('ticketIds array is required', 400, undefined, origin);
+      }
+      if (!assignTo) return error('assignTo is required', 400, undefined, origin);
+      if (ticketIds.length > 50) return error('Maximum 50 tickets per bulk operation', 400, undefined, origin);
+
+      // Verify assignee exists in org
+      const assigneeProfile = await prisma.profile.findFirst({
+        where: { id: assignTo, organization_id: organizationId },
+        select: { id: true, full_name: true, email: true },
+      });
+      if (!assigneeProfile) return error('Assignee not found in organization', 404, undefined, origin);
+
+      const { valid, invalid } = await validateTicketOwnership(prisma, ticketIds, organizationId);
+      if (valid.length === 0) return error('No valid tickets found', 404, undefined, origin);
+
+      await prisma.remediationTicket.updateMany({
+        where: { id: { in: valid } },
+        data: { assigned_to: assignTo },
+      });
+
+      // Record history for each
+      for (const ticketId of valid) {
+        await recordTicketHistory(
+          prisma, ticketId, user.sub, user.name || user.email, user.email,
+          'assigned', 'assigned_to', null, assigneeProfile.full_name || assignTo,
+          `Bulk assigned to ${assigneeProfile.full_name || assigneeProfile.email}`
+        );
+        // Auto-watch assignee
+        await autoWatch(prisma, ticketId, assignTo, assigneeProfile.full_name, assigneeProfile.email);
+      }
+
+      logAuditAsync({
+        organizationId, userId: user.sub, action: 'TICKET_UPDATE',
+        resourceType: 'ticket', resourceId: 'bulk',
+        details: { operation: 'bulk-assign', assignTo, count: valid.length },
+        ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event),
+      });
+
+      return success({ updated: valid, invalid, message: `Assigned ${valid.length} tickets` });
+    }
+
+    if (action === 'bulk-change-priority') {
+      const { ticketIds, priority: newPriority } = body;
+      if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
+        return error('ticketIds array is required', 400, undefined, origin);
+      }
+      if (!['low', 'medium', 'high', 'critical'].includes(newPriority)) {
+        return error('priority must be low, medium, high, or critical', 400, undefined, origin);
+      }
+      if (ticketIds.length > 50) return error('Maximum 50 tickets per bulk operation', 400, undefined, origin);
+
+      const { valid, invalid } = await validateTicketOwnership(prisma, ticketIds, organizationId);
+      if (valid.length === 0) return error('No valid tickets found', 404, undefined, origin);
+
+      await prisma.remediationTicket.updateMany({
+        where: { id: { in: valid } },
+        data: { priority: newPriority },
+      });
+
+      for (const ticketId of valid) {
+        await recordTicketHistory(
+          prisma, ticketId, user.sub, user.name || user.email, user.email,
+          'priority_changed', 'priority', null, newPriority, 'Bulk priority change'
+        );
+      }
+
+      return success({ updated: valid, invalid, message: `Changed priority of ${valid.length} tickets` });
+    }
+
+    // ==================== ASSIGNMENT RULES (CRUD) ====================
+
+    if (action === 'create-assignment-rule') {
+      const { name, description, matchSeverity, matchCategory, matchService, strategy, assignTo: ruleAssignTo, roundRobinPool, priority: rulePriority } = body;
+      if (!name) return error('name is required', 400, undefined, origin);
+      if (!['specific_user', 'round_robin'].includes(strategy || 'specific_user')) {
+        return error('strategy must be specific_user or round_robin', 400, undefined, origin);
+      }
+
+      const effectiveStrategy = strategy || 'specific_user';
+      if (effectiveStrategy === 'specific_user' && !ruleAssignTo) {
+        return error('assignTo is required for specific_user strategy', 400, undefined, origin);
+      }
+      if (effectiveStrategy === 'round_robin' && (!Array.isArray(roundRobinPool) || roundRobinPool.length === 0)) {
+        return error('roundRobinPool is required for round_robin strategy', 400, undefined, origin);
+      }
+
+      const rule = await prisma.assignmentRule.create({
+        data: {
+          organization_id: organizationId,
+          name,
+          description: description || null,
+          match_severity: matchSeverity || null,
+          match_category: matchCategory || null,
+          match_service: matchService || null,
+          strategy: effectiveStrategy,
+          assign_to: ruleAssignTo || null,
+          round_robin_pool: roundRobinPool || [],
+          priority: rulePriority || 0,
+        },
+      });
+
+      return success({ rule, message: 'Assignment rule created successfully' });
+    }
+
+    if (action === 'update-assignment-rule') {
+      const { ruleId, ...ruleUpdates } = body;
+      if (!ruleId) return error('ruleId is required', 400, undefined, origin);
+
+      const existingRule = await prisma.assignmentRule.findFirst({
+        where: { id: ruleId, organization_id: organizationId },
+      });
+      if (!existingRule) return error('Assignment rule not found', 404, undefined, origin);
+
+      const updateData: any = {};
+      if (ruleUpdates.name !== undefined) updateData.name = ruleUpdates.name;
+      if (ruleUpdates.description !== undefined) updateData.description = ruleUpdates.description;
+      if (ruleUpdates.isActive !== undefined) updateData.is_active = ruleUpdates.isActive;
+      if (ruleUpdates.priority !== undefined) updateData.priority = ruleUpdates.priority;
+      if (ruleUpdates.matchSeverity !== undefined) updateData.match_severity = ruleUpdates.matchSeverity || null;
+      if (ruleUpdates.matchCategory !== undefined) updateData.match_category = ruleUpdates.matchCategory || null;
+      if (ruleUpdates.matchService !== undefined) updateData.match_service = ruleUpdates.matchService || null;
+      if (ruleUpdates.strategy !== undefined) updateData.strategy = ruleUpdates.strategy;
+      if (ruleUpdates.assignTo !== undefined) updateData.assign_to = ruleUpdates.assignTo || null;
+      if (ruleUpdates.roundRobinPool !== undefined) updateData.round_robin_pool = ruleUpdates.roundRobinPool;
+
+      const rule = await prisma.assignmentRule.update({
+        where: { id: ruleId },
+        data: updateData,
+      });
+
+      return success({ rule, message: 'Assignment rule updated successfully' });
+    }
+
+    if (action === 'delete-assignment-rule') {
+      const { ruleId } = body;
+      if (!ruleId) return error('ruleId is required', 400, undefined, origin);
+
+      const existingRule = await prisma.assignmentRule.findFirst({
+        where: { id: ruleId, organization_id: organizationId },
+      });
+      if (!existingRule) return error('Assignment rule not found', 404, undefined, origin);
+
+      await prisma.assignmentRule.delete({ where: { id: ruleId } });
+      return success({ message: 'Assignment rule deleted successfully' });
+    }
+
+    if (action === 'get-assignment-rules') {
+      const rules = await prisma.assignmentRule.findMany({
+        where: { organization_id: organizationId },
+        orderBy: { priority: 'desc' },
+      });
+
+      return success({ rules });
+    }
+
+    if (action === 'test-assignment') {
+      // Test which rule would match for given ticket attributes
+      const { severity, category, service } = body;
+      const match = await findAssignment(prisma, organizationId, {
+        severity, category, metadata: service ? { services: [service] } : undefined,
+      });
+
+      if (!match) return success({ match: null, message: 'No matching assignment rule found' });
+
+      // Get assignee profile
+      const profile = await prisma.profile.findFirst({
+        where: { id: match.assignTo, organization_id: organizationId },
+        select: { id: true, full_name: true, email: true },
+      });
+
+      return success({
+        match: { ...match, assigneeName: profile?.full_name, assigneeEmail: profile?.email },
+        message: `Would assign to ${profile?.full_name || match.assignTo} via rule "${match.ruleName}"`,
+      });
     }
 
     return error(`Unknown action: ${action}`, 400, undefined, origin);
