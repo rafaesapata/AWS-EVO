@@ -173,15 +173,16 @@ export const handler = safeHandler(async (
     
     // Save posture (only if not filtering by account - save aggregate)
     if (!accountId) {
+      const scoreValue = Number(posture.overallScore) || 0;
       await prisma.securityPosture.create({
         data: {
           organization_id: organizationId,
-          overall_score: posture.overallScore,
-          compliance_score: posture.overallScore,
-          critical_findings: posture.counts.critical,
-          high_findings: posture.counts.high,
-          medium_findings: posture.counts.medium,
-          low_findings: posture.counts.low,
+          overall_score: scoreValue,
+          compliance_score: scoreValue,
+          critical_findings: Math.round(posture.counts.critical),
+          high_findings: Math.round(posture.counts.high),
+          medium_findings: Math.round(posture.counts.medium),
+          low_findings: Math.round(posture.counts.low),
           risk_level: posture.riskLevel,
           calculated_at: new Date(),
         },
