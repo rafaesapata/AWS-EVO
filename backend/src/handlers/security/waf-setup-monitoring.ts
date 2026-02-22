@@ -111,7 +111,7 @@ const CF_UPDATE_INSTRUCTION =
   `Replace current template → Use URL: ${CF_TEMPLATE_URL} → Next → Submit.`;
 
 /** Create a named Error for consistent error handling in the outer catch block */
-function createPermissionError(message: string, name: 'AccessDeniedException' | 'WAFPermissionPreFlightError' = 'AccessDeniedException'): Error {
+function createPermissionError(message: string, name: 'AccessDeniedException' | 'WAFPermissionPreFlightError' | 'EVOInfraProvisionError' = 'AccessDeniedException'): Error {
   const err = new Error(message);
   (err as any).name = name;
   return err;
@@ -823,6 +823,17 @@ export const handler = safeHandler(async (
     if (errName === 'WAFPermissionPreFlightError') {
       return error(errMsg, 422);
     }
+
+    // Handle EVO infrastructure provisioning errors (not customer's fault)
+    if (errName === 'EVOInfraProvisionError') {
+      return error(
+        `[EVO_INFRA_ERROR] WAF monitoring infrastructure provisioning failed. ` +
+        `This is a temporary issue on the EVO platform side, not related to your AWS account permissions. ` +
+        `Please try again in a few minutes. If the issue persists, contact EVO support. ` +
+        `Details: ${errMsg}`,
+        503
+      );
+    }
     
     // Handle specific AWS errors with meaningful responses
     if (errName === 'ResourceNotFoundException') {
@@ -1008,7 +1019,7 @@ async function validateWafPermissions(
     });
   } catch (err: any) {
     // If it's our own pre-flight error, re-throw it
-    if (err.name === 'WAFPermissionPreFlightError') {
+    if (err.name === 'WAFPermissionPreFlightError' || err.name === 'EVOInfraProvisionError') {
       throw err;
     }
     
@@ -1435,7 +1446,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
       `Error: ${provisionErr.message}. ` +
       `The EVO Lambda execution role may lack permissions to create IAM roles, Lambda functions, or CW Logs destinations. ` +
       `Destination: ${destinationArn}`,
-      'WAFPermissionPreFlightError'
+      'EVOInfraProvisionError'
     );
   }
   if (!destinationReady) {
@@ -1444,7 +1455,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
       `Failed to auto-provision WAF monitoring infrastructure in region ${region}. ` +
       `The EVO Lambda execution role may lack permissions to create IAM roles, Lambda functions, or CW Logs destinations. ` +
       `Destination: ${destinationArn}`,
-      'WAFPermissionPreFlightError'
+      'EVOInfraProvisionError'
     );
   }
   
@@ -1459,7 +1470,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     throw createPermissionError(
       `WAF monitoring destination exists but policy update failed in region ${region}. ` +
       `Destination: ${destinationArn}`,
-      'WAFPermissionPreFlightError'
+      'EVOInfraProvisionError'
     );
   }
   
@@ -1537,7 +1548,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
         `Possible causes: (1) Destination policy not yet propagated, (2) CloudWatch Logs role trust policy incorrect, ` +
         `(3) Destination does not exist in region ${region}. ` +
         `Please try again in 30 seconds. If the issue persists, contact EVO support.`,
-        'WAFPermissionPreFlightError'
+        'EVOInfraProvisionError'
       );
     }
     

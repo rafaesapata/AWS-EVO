@@ -141,8 +141,16 @@ export function WafSetupPanel({ onSetupComplete }: WafSetupPanelProps) {
       onSetupComplete?.();
     },
     onError: (error) => {
-      // Check if it's a permission/CloudFormation update error
-      if (error.message?.includes('CloudFormation') || error.message?.includes('permissions') || 
+      // EVO infrastructure error — not the customer's fault, don't show CloudFormation update instructions
+      if (error.message?.includes('EVO_INFRA_ERROR')) {
+        toast({ 
+          title: t('waf.infraError', 'EVO Platform Error'), 
+          description: t('waf.infraErrorDesc', 'WAF monitoring infrastructure is being provisioned. Please try again in a few minutes. If the issue persists, contact EVO support.'),
+          variant: "destructive",
+          duration: 10000,
+        });
+      // Check if it's a permission/CloudFormation update error (customer side)
+      } else if (error.message?.includes('CloudFormation') || error.message?.includes('permissions') || 
           error.message?.includes('IAM role') || error.message?.includes('Access denied') ||
           error.message?.includes('not authorized')) {
         setPermissionError(error.message);
