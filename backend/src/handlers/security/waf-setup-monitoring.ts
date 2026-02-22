@@ -867,6 +867,16 @@ export const handler = safeHandler(async (
       );
     }
     
+    if (errName === 'WAFInvalidOperationException') {
+      // This is NOT a permission error — it's a configuration/propagation issue
+      return error(
+        `WAF logging configuration failed. This is usually caused by resource policy propagation delay. ` +
+        `Please try again in 10-15 seconds. If the issue persists, verify the log group has the correct resource policy. ` +
+        `Details: ${errMsg}`,
+        409
+      );
+    }
+    
     if (errName === 'WAFInvalidParameterException') {
       return error(
         `Invalid WAF parameter. Details: ${errMsg}`,
@@ -1124,45 +1134,94 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     // Continue for non-permission errors - the policy might already exist
   }
   
+  // Wait for resource policy propagation before attempting PutLoggingConfiguration
+  // AWS WAF requires the resource policy to be fully propagated before it can write to the log group
+  logger.info('Waiting for resource policy propagation before enabling WAF logging', { logGroupName });
+  await new Promise(resolve => setTimeout(resolve, POLICY_PROPAGATION_DELAY_MS));
+  
   // Step 3: Enable WAF logging to CloudWatch Logs
   logger.info('WAF setup step 3: enabling WAF logging', { organizationId, webAclArn, loggingConfigured });
   if (!loggingConfigured) {
     const logDestination = `arn:aws:logs:${webAclArn.split(':')[3]}:${webAclArn.split(':')[4]}:log-group:${logGroupName}`;
     
-    try {
-      await wafClient.send(new PutLoggingConfigurationCommand({
-        LoggingConfiguration: {
-          ResourceArn: webAclArn,
-          LogDestinationConfigs: [logDestination],
-          LoggingFilter: filterMode === 'block_only' ? {
-            DefaultBehavior: 'DROP',
-            Filters: [
-              {
-                Behavior: 'KEEP',
-                Requirement: 'MEETS_ANY',
-                Conditions: [
-                  { ActionCondition: { Action: 'BLOCK' } },
-                  { ActionCondition: { Action: 'COUNT' } },
-                ],
-              },
-            ],
-          } : undefined,
-        },
-      }));
-      logger.info('Enabled WAF logging', { webAclArn, logDestination });
-    } catch (err: any) {
-      logger.error('Failed to enable WAF logging', err, { 
-        webAclArn, logDestination, errorName: err.name, errorMessage: err.message 
+    // Retry PutLoggingConfiguration — resource policy propagation can take a few seconds
+    const PUT_LOGGING_MAX_RETRIES = 3;
+    const PUT_LOGGING_RETRY_DELAY_MS = 3000;
+    let putLoggingLastErr: any = null;
+    
+    for (let attempt = 1; attempt <= PUT_LOGGING_MAX_RETRIES; attempt++) {
+      try {
+        logger.info('PutLoggingConfiguration attempt', { attempt, maxRetries: PUT_LOGGING_MAX_RETRIES, webAclArn, logDestination });
+        await wafClient.send(new PutLoggingConfigurationCommand({
+          LoggingConfiguration: {
+            ResourceArn: webAclArn,
+            LogDestinationConfigs: [logDestination],
+            LoggingFilter: filterMode === 'block_only' ? {
+              DefaultBehavior: 'DROP',
+              Filters: [
+                {
+                  Behavior: 'KEEP',
+                  Requirement: 'MEETS_ANY',
+                  Conditions: [
+                    { ActionCondition: { Action: 'BLOCK' } },
+                    { ActionCondition: { Action: 'COUNT' } },
+                  ],
+                },
+              ],
+            } : undefined,
+          },
+        }));
+        logger.info('Enabled WAF logging', { webAclArn, logDestination, attempt });
+        putLoggingLastErr = null;
+        break;
+      } catch (err: any) {
+        putLoggingLastErr = err;
+        logger.warn('PutLoggingConfiguration failed', {
+          attempt, maxRetries: PUT_LOGGING_MAX_RETRIES,
+          webAclArn, logDestination, errorName: err.name, errorMessage: err.message,
+        });
+        
+        // WAFInvalidOperationException often means resource policy hasn't propagated yet — retry
+        if (err.name === 'WAFInvalidOperationException' && attempt < PUT_LOGGING_MAX_RETRIES) {
+          logger.info(`Waiting ${PUT_LOGGING_RETRY_DELAY_MS}ms before retry (resource policy propagation)`, { attempt });
+          await new Promise(resolve => setTimeout(resolve, PUT_LOGGING_RETRY_DELAY_MS));
+          continue;
+        }
+        
+        // Real access denied — don't retry
+        if (isAccessDenied(err)) {
+          break;
+        }
+        
+        // Other errors — don't retry
+        break;
+      }
+    }
+    
+    if (putLoggingLastErr) {
+      logger.error('Failed to enable WAF logging after all retries', putLoggingLastErr, { 
+        webAclArn, logDestination, errorName: putLoggingLastErr.name, errorMessage: putLoggingLastErr.message 
       });
       
-      if (err.name === 'WAFInvalidOperationException' || isAccessDenied(err)) {
+      if (isAccessDenied(putLoggingLastErr)) {
         throw createPermissionError(
           `The IAM role is missing the wafv2:PutLoggingConfiguration permission required to enable WAF logging. ` +
           `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`
         );
       }
       
-      throw err;
+      if (putLoggingLastErr.name === 'WAFInvalidOperationException') {
+        // After retries, this is likely a real configuration issue, not permissions
+        throw new Error(
+          `WAF logging configuration failed after ${PUT_LOGGING_MAX_RETRIES} attempts. ` +
+          `This is usually caused by resource policy propagation delay or a log group configuration issue. ` +
+          `Log destination: ${logDestination}. ` +
+          `Please try again in a few seconds. If the issue persists, verify the log group "${logGroupName}" exists and has the correct resource policy. ` +
+          `Details: ${putLoggingLastErr.message}`
+        );
+      }
+      
+      throw putLoggingLastErr;
     }
   }
   
@@ -1514,13 +1573,41 @@ async function handleTestSetup(
     steps.push({ step: 'put-resource-policy', status: 'fail', detail: `${err.name}: ${err.message}` });
   }
 
-  // Test WAF logging config
+  // Test WAF logging config — actually test PutLoggingConfiguration permission
+  const logDestination = `arn:aws:logs:${wafRegion}:${customerAwsAccountId}:log-group:${logGroupName}`;
   try {
     const loggingConfig = await wafClient.send(new GetLoggingConfigurationCommand({ ResourceArn: webAclArn }));
-    steps.push({ step: 'waf-logging', status: 'ok', detail: loggingConfig.LoggingConfiguration ? 'Already configured' : 'Not configured (will be created)' });
+    if (loggingConfig.LoggingConfiguration) {
+      steps.push({ step: 'waf-logging', status: 'ok', detail: 'Already configured' });
+    } else {
+      // Not configured — test PutLoggingConfiguration to verify permission
+      try {
+        await wafClient.send(new PutLoggingConfigurationCommand({
+          LoggingConfiguration: {
+            ResourceArn: webAclArn,
+            LogDestinationConfigs: [logDestination],
+          },
+        }));
+        steps.push({ step: 'waf-logging', status: 'ok', detail: 'PutLoggingConfiguration succeeded (test)' });
+        // Note: we leave it configured since setup will reconfigure with filters anyway
+      } catch (putErr: any) {
+        steps.push({ step: 'waf-logging', status: 'fail', detail: `PutLoggingConfiguration failed: ${putErr.name}: ${putErr.message}` });
+      }
+    }
   } catch (err: any) {
     if (err.name === 'WAFNonexistentItemException') {
-      steps.push({ step: 'waf-logging', status: 'ok', detail: 'Not configured (will be created)' });
+      // Not configured — test PutLoggingConfiguration to verify permission
+      try {
+        await wafClient.send(new PutLoggingConfigurationCommand({
+          LoggingConfiguration: {
+            ResourceArn: webAclArn,
+            LogDestinationConfigs: [logDestination],
+          },
+        }));
+        steps.push({ step: 'waf-logging', status: 'ok', detail: 'PutLoggingConfiguration succeeded (test)' });
+      } catch (putErr: any) {
+        steps.push({ step: 'waf-logging', status: 'fail', detail: `PutLoggingConfiguration failed: ${putErr.name}: ${putErr.message}` });
+      }
     } else {
       steps.push({ step: 'waf-logging', status: 'fail', detail: `${err.name}: ${err.message}` });
     }
