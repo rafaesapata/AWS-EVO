@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 const FIELD_LIMITS = {
   TEMPLATE_TYPE: 100,
@@ -133,13 +134,18 @@ export async function handler(event: AuthorizedEvent, _context: LambdaContext): 
   const prisma = getPrismaClient();
 
   try {
+    let result: APIGatewayProxyResultV2;
+
     switch (data.action) {
       case 'create':
-        return await handleCreate(prisma, data, user.sub);
+        result = await handleCreate(prisma, data, user.sub);
+        break;
       case 'update':
-        return await handleUpdate(prisma, data, user.sub);
+        result = await handleUpdate(prisma, data, user.sub);
+        break;
       case 'delete':
-        return await handleDelete(prisma, data);
+        result = await handleDelete(prisma, data);
+        break;
       case 'list':
         return await handleList(prisma, data);
       case 'get':
@@ -147,10 +153,28 @@ export async function handler(event: AuthorizedEvent, _context: LambdaContext): 
       case 'preview':
         return await handlePreview(prisma, data);
       case 'upload_image':
-        return await handleUploadImage(prisma, data);
+        result = await handleUploadImage(prisma, data);
+        break;
       default:
         return badRequest('Unknown action');
     }
+
+    // Audit log for mutating actions
+    if (['create', 'update', 'delete', 'upload_image'].includes(data.action)) {
+      const resourceId = 'id' in data ? data.id : ('template_type' in data ? data.template_type : 'unknown');
+      logAuditAsync({
+        organizationId: 'system',
+        userId: user.sub,
+        action: 'SETTINGS_UPDATE',
+        resourceType: 'settings',
+        resourceId: String(resourceId),
+        details: { sub_action: 'email_template_' + data.action },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
+      });
+    }
+
+    return result;
   } catch (err) {
     logger.error('manage-email-templates error', err as Error);
     return error('Internal server error');
@@ -222,7 +246,7 @@ async function handleUpdate(
     if (value === undefined) continue;
     // System templates: only allow editable fields
     if (isSystem && !SYSTEM_EDITABLE_FIELDS.includes(field)) continue;
-    setClauses.push(`${field} = $${paramIndex++}`);
+    setClauses.push(field + ' = $' + paramIndex++);
     params.push(value);
   }
 
@@ -230,14 +254,15 @@ async function handleUpdate(
     return badRequest('No valid fields to update');
   }
 
-  setClauses.push(`updated_by = $${paramIndex++}`);
+  setClauses.push('updated_by = $' + paramIndex++);
   params.push(userId);
-  setClauses.push(`updated_at = NOW()`);
+  setClauses.push('updated_at = NOW()');
   params.push(data.id);
 
+  const whereParam = '$' + paramIndex;
   const result = await prisma.$queryRawUnsafe<any[]>(
-    `UPDATE "EmailTemplate" SET ${setClauses.join(', ')} WHERE id = $${paramIndex}
-     RETURNING id, template_type, name, description, subject, category, header_image_url, is_active, is_system, updated_at`,
+    'UPDATE "EmailTemplate" SET ' + setClauses.join(', ') + ' WHERE id = ' + whereParam +
+    ' RETURNING id, template_type, name, description, subject, category, header_image_url, is_active, is_system, updated_at',
     ...params
   );
 
@@ -272,21 +297,21 @@ async function handleList(
   let paramIndex = 1;
 
   if (data.category) {
-    conditions.push(`category = $${paramIndex++}`);
+    conditions.push('category = $' + paramIndex++);
     params.push(data.category);
   }
   if (data.is_active !== undefined) {
-    conditions.push(`is_active = $${paramIndex++}`);
+    conditions.push('is_active = $' + paramIndex++);
     params.push(data.is_active);
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
   const templates = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT id, template_type, name, description, subject, category, header_image_url,
-            is_active, is_system, variables, created_at, updated_at
-     FROM "EmailTemplate" ${whereClause}
-     ORDER BY is_system DESC, category, name`,
+    'SELECT id, template_type, name, description, subject, category, header_image_url,' +
+    ' is_active, is_system, variables, created_at, updated_at' +
+    ' FROM "EmailTemplate" ' + whereClause +
+    ' ORDER BY is_system DESC, category, name',
     ...params
   );
 
