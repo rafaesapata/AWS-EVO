@@ -47,19 +47,41 @@ export async function handler(
       },
     });
 
-    // Extract service names from resource_type (e.g., "aws:ec2:instance" → "ec2", "aws:s3:bucket" → "s3")
-    const serviceNames = new Set<string>();
+    // Extract short service identifiers from resource_type (e.g., "aws:ec2:instance" → "ec2")
+    const shortNames = new Set<string>();
     for (const group of resourceGroups) {
       const parts = (group.resource_type || '').split(':');
       if (parts.length >= 2) {
-        serviceNames.add(parts[1].toLowerCase());
+        shortNames.add(parts[1].toLowerCase());
       } else {
-        serviceNames.add((group.resource_type || '').toLowerCase());
+        shortNames.add((group.resource_type || '').toLowerCase());
       }
     }
 
+    // Map short identifiers to actual billing service names from daily_costs
+    // This ensures exact matching with cost data's service_breakdown keys
+    let billingServiceNames: string[] = [];
+    if (shortNames.size > 0) {
+      const shortArr = Array.from(shortNames);
+      // Build OR conditions to find billing services containing the short names
+      const orConditions = shortArr.map(s => ({
+        service: { contains: s, mode: 'insensitive' as const },
+      }));
+      const billingServices = await prisma.dailyCost.findMany({
+        where: {
+          organization_id: organizationId,
+          OR: orConditions,
+          ...(accountId && accountId !== 'all' ? { aws_account_id: accountId } : {}),
+        },
+        select: { service: true },
+        distinct: ['service'],
+      });
+      billingServiceNames = billingServices.map(s => s.service);
+    }
+
     return success({
-      services: Array.from(serviceNames),
+      services: billingServiceNames.length > 0 ? billingServiceNames : Array.from(shortNames),
+      shortNames: Array.from(shortNames),
       resourceCount: resourceGroups.length,
       tagCount: tagIds.length,
     }, 200, origin);

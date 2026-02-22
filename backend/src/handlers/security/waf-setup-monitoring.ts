@@ -1134,6 +1134,44 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     // Continue for non-permission errors - the policy might already exist
   }
   
+  // Step 2.7: Ensure WAF Service-Linked Role exists
+  // PutLoggingConfiguration requires AWSServiceRoleForWAFV2Logging to exist.
+  // Without it, WAF returns AccessDeniedException (misleading error).
+  logger.info('WAF setup step 2.7: ensuring WAF SLR exists', { organizationId });
+  try {
+    const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+    await iamClient.send(new GetRoleCommand({ RoleName: 'AWSServiceRoleForWAFV2Logging' }));
+    logger.info('WAF SLR already exists');
+  } catch (slrErr: any) {
+    if (slrErr.name === 'NoSuchEntityException') {
+      logger.info('WAF SLR does not exist, creating it...');
+      try {
+        const { CreateServiceLinkedRoleCommand } = await import('@aws-sdk/client-iam');
+        const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+        await iamClient.send(new CreateServiceLinkedRoleCommand({
+          AWSServiceName: 'wafv2.amazonaws.com',
+          Description: 'Service-linked role for WAF logging (created by EVO Platform)',
+        }));
+        logger.info('Created WAF SLR, waiting for propagation...');
+        await new Promise(resolve => setTimeout(resolve, IAM_PROPAGATION_DELAY_MS));
+      } catch (createErr: any) {
+        if (createErr.name === 'InvalidInputException' && createErr.message?.includes('already exists')) {
+          logger.info('WAF SLR already exists (race condition)');
+        } else if (isAccessDenied(createErr)) {
+          logger.warn('Cannot create WAF SLR (missing iam:CreateServiceLinkedRole permission), continuing anyway...', {
+            error: createErr.message,
+          });
+        } else {
+          logger.warn('Failed to create WAF SLR (non-critical)', { error: createErr.message });
+        }
+      }
+    } else if (isAccessDenied(slrErr)) {
+      logger.warn('Cannot check WAF SLR (missing iam:GetRole permission), continuing anyway...');
+    } else {
+      logger.warn('Failed to check WAF SLR (non-critical)', { error: slrErr.message });
+    }
+  }
+
   // Wait for resource policy propagation before attempting PutLoggingConfiguration
   // AWS WAF requires the resource policy to be fully propagated before it can write to the log group
   logger.info('Waiting for resource policy propagation before enabling WAF logging', { logGroupName });
@@ -1145,8 +1183,8 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     const logDestination = `arn:aws:logs:${webAclArn.split(':')[3]}:${webAclArn.split(':')[4]}:log-group:${logGroupName}`;
     
     // Retry PutLoggingConfiguration — resource policy propagation can take a few seconds
-    const PUT_LOGGING_MAX_RETRIES = 3;
-    const PUT_LOGGING_RETRY_DELAY_MS = 3000;
+    const PUT_LOGGING_MAX_RETRIES = 5;
+    const PUT_LOGGING_RETRY_DELAY_MS = 5000;
     let putLoggingLastErr: any = null;
     
     for (let attempt = 1; attempt <= PUT_LOGGING_MAX_RETRIES; attempt++) {
@@ -1181,16 +1219,11 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
           webAclArn, logDestination, errorName: err.name, errorMessage: err.message,
         });
         
-        // WAFInvalidOperationException often means resource policy hasn't propagated yet — retry
-        if (err.name === 'WAFInvalidOperationException' && attempt < PUT_LOGGING_MAX_RETRIES) {
-          logger.info(`Waiting ${PUT_LOGGING_RETRY_DELAY_MS}ms before retry (resource policy propagation)`, { attempt });
+        // WAFInvalidOperationException or AccessDeniedException often means resource policy or SLR hasn't propagated yet — retry
+        if ((err.name === 'WAFInvalidOperationException' || err.name === 'AccessDeniedException') && attempt < PUT_LOGGING_MAX_RETRIES) {
+          logger.info(`Waiting ${PUT_LOGGING_RETRY_DELAY_MS}ms before retry (resource policy/SLR propagation)`, { attempt });
           await new Promise(resolve => setTimeout(resolve, PUT_LOGGING_RETRY_DELAY_MS));
           continue;
-        }
-        
-        // Real access denied — don't retry
-        if (isAccessDenied(err)) {
-          break;
         }
         
         // Other errors — don't retry
@@ -1681,71 +1714,102 @@ async function handleListWafs(
     return error('Missing required parameter: accountId', 400);
   }
   
-  // Get AWS credentials for the customer account
-  const account = await prisma.awsCredential.findFirst({
-    where: { id: accountId, organization_id: organizationId, is_active: true },
-  });
-  
-  if (!account) {
-    return error('AWS account not found', 404);
+  // Support "all" to scan WAFs across all accounts
+  let accounts: any[];
+  if (accountId === 'all') {
+    accounts = await prisma.awsCredential.findMany({
+      where: { organization_id: organizationId, is_active: true },
+    });
+    if (accounts.length === 0) {
+      return error('No active AWS accounts found', 404);
+    }
+  } else {
+    // Get AWS credentials for the specific customer account
+    const account = await prisma.awsCredential.findFirst({
+      where: { id: accountId, organization_id: organizationId, is_active: true },
+    });
+    if (!account) {
+      return error('AWS account not found', 404);
+    }
+    accounts = [account];
   }
   
   // Scan ALL supported regions to find WAFs
-  // account.regions may be empty, incomplete, or not include WAF regions
-  // Use parallel scanning for performance (20 regions in ~2-3s instead of ~20s sequential)
+  // Use concurrency-limited parallel scanning to avoid OOM (max 5 concurrent region scans)
   const regions = [...SUPPORTED_REGIONS];
+  const SCAN_CONCURRENCY = 5;
   
   const allWebAcls: any[] = [];
   
-  // First: Always scan CLOUDFRONT WAFs from us-east-1 (they are global)
-  try {
-    const globalCreds = await resolveAwsCredentials(account, 'us-east-1');
-    const globalCredentials = toAwsCredentials(globalCreds);
-    const globalWafClient = new WAFV2Client({ region: 'us-east-1', credentials: globalCredentials });
+  for (const account of accounts) {
+    const acctLabel = account.account_name || account.account_id || account.id;
     
+    // Pre-warm credential cache with a single AssumeRole call
+    // All regions share the same credentials (roleArn:externalId), so one call suffices
     try {
-      const cloudfrontWafs = await globalWafClient.send(new ListWebACLsCommand({
-        Scope: 'CLOUDFRONT',
-      }));
+      await resolveAwsCredentials(account, 'us-east-1');
+    } catch (err) {
+      logger.warn('Failed to pre-warm credentials', { error: err, account: acctLabel });
+      continue; // Skip this account entirely if we can't assume role
+    }
+    
+    // First: Always scan CLOUDFRONT WAFs from us-east-1 (they are global)
+    try {
+      const globalCreds = await resolveAwsCredentials(account, 'us-east-1');
+      const globalCredentials = toAwsCredentials(globalCreds);
+      const globalWafClient = new WAFV2Client({ region: 'us-east-1', credentials: globalCredentials });
       
-      if (cloudfrontWafs.WebACLs) {
-        allWebAcls.push(...cloudfrontWafs.WebACLs.map(waf => ({
-          ...waf,
+      try {
+        const cloudfrontWafs = await globalWafClient.send(new ListWebACLsCommand({
           Scope: 'CLOUDFRONT',
-          Region: 'global',
-        })));
+        }));
+        
+        if (cloudfrontWafs.WebACLs) {
+          allWebAcls.push(...cloudfrontWafs.WebACLs.map(waf => ({
+            ...waf,
+            Scope: 'CLOUDFRONT',
+            Region: 'global',
+            AccountId: account.account_id || account.id,
+            AccountName: account.account_name,
+          })));
+        }
+      } catch (err) {
+        logger.warn('Failed to list CLOUDFRONT WAFs', { error: err, account: acctLabel });
       }
     } catch (err) {
-      logger.warn('Failed to list CLOUDFRONT WAFs', { error: err });
+      logger.warn('Failed to get credentials for us-east-1 (CLOUDFRONT WAFs)', { error: err, account: acctLabel });
     }
-  } catch (err) {
-    logger.warn('Failed to get credentials for us-east-1 (CLOUDFRONT WAFs)', { error: err });
-  }
-  
-  // Second: Scan REGIONAL WAFs in ALL regions in parallel
-  const regionalResults = await Promise.allSettled(
-    regions.map(async (region) => {
-      const resolvedCreds = await resolveAwsCredentials(account, region);
-      const credentials = toAwsCredentials(resolvedCreds);
-      const wafClient = new WAFV2Client({ region, credentials });
+    
+    // Second: Scan REGIONAL WAFs with concurrency limit to avoid OOM
+    for (let i = 0; i < regions.length; i += SCAN_CONCURRENCY) {
+      const batch = regions.slice(i, i + SCAN_CONCURRENCY);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (region) => {
+          const resolvedCreds = await resolveAwsCredentials(account, region);
+          const credentials = toAwsCredentials(resolvedCreds);
+          const wafClient = new WAFV2Client({ region, credentials });
+          
+          const regionalWafs = await wafClient.send(new ListWebACLsCommand({
+            Scope: 'REGIONAL',
+          }));
+          
+          return (regionalWafs.WebACLs || []).map(waf => ({
+            ...waf,
+            Scope: 'REGIONAL',
+            Region: region,
+            AccountId: account.account_id || account.id,
+            AccountName: account.account_name,
+          }));
+        })
+      );
       
-      const regionalWafs = await wafClient.send(new ListWebACLsCommand({
-        Scope: 'REGIONAL',
-      }));
-      
-      return (regionalWafs.WebACLs || []).map(waf => ({
-        ...waf,
-        Scope: 'REGIONAL',
-        Region: region,
-      }));
-    })
-  );
-  
-  for (const result of regionalResults) {
-    if (result.status === 'fulfilled' && result.value.length > 0) {
-      allWebAcls.push(...result.value);
-    } else if (result.status === 'rejected') {
-      logger.warn('Failed to scan region for WAFs', { error: result.reason });
+      for (const result of batchResults) {
+        if (result.status === 'fulfilled' && result.value.length > 0) {
+          allWebAcls.push(...result.value);
+        } else if (result.status === 'rejected') {
+          logger.warn('Failed to scan region for WAFs', { error: result.reason, account: acctLabel });
+        }
+      }
     }
   }
   

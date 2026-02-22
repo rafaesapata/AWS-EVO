@@ -61,6 +61,7 @@ process.env.ENVIRONMENT = process.env.ENVIRONMENT || 'development';
 process.env.IS_LOCAL = 'true';
 process.env.PROJECT_NAME = process.env.PROJECT_NAME || 'evo-uds-v3';
 process.env.AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+process.env.AWS_PROFILE = process.env.AWS_PROFILE || 'EVO_PRODUCTION';
 process.env.COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || process.env.VITE_AWS_USER_POOL_ID || 'us-east-1_local';
 process.env.COGNITO_CLIENT_ID = process.env.COGNITO_CLIENT_ID || process.env.VITE_AWS_USER_POOL_CLIENT_ID || 'local-client';
 process.env.TOKEN_ENCRYPTION_KEY = process.env.TOKEN_ENCRYPTION_KEY || 'local-test-key-32chars-minimum!!';
@@ -156,7 +157,7 @@ function getDefaultClaims(): Record<string, any> {
     email: process.env.LOCAL_USER_EMAIL || 'local@evo.test',
     email_verified: 'true',
     'custom:organization_id': process.env.LOCAL_ORG_ID || randomUUID(),
-    'custom:roles': process.env.LOCAL_USER_ROLES || 'admin',
+    'custom:roles': process.env.LOCAL_USER_ROLES || 'super_admin',
   };
 }
 

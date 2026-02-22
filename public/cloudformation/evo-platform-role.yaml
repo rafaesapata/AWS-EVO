@@ -588,6 +588,22 @@ Resources:
               - 'iam:PutRolePolicy'
             Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/EVO-CloudWatch-Logs-Role'
 
+          # WAF Monitoring: Create Service-Linked Role for WAF logging
+          - Sid: WAFServiceLinkedRole
+            Effect: Allow
+            Action:
+              - 'iam:CreateServiceLinkedRole'
+            Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/wafv2.amazonaws.com/*'
+            Condition:
+              StringEquals:
+                'iam:AWSServiceName': 'wafv2.amazonaws.com'
+
+          - Sid: WAFServiceLinkedRoleCheck
+            Effect: Allow
+            Action:
+              - 'iam:GetRole'
+            Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/wafv2.amazonaws.com/AWSServiceRoleForWAFV2Logging'
+
   # ----------------------------------------------------------------------------
   # IAM Role for CloudWatch Logs Cross-Account Subscription (WAF Monitoring)
   # IMPORTANT: Using fixed name 'EVO-CloudWatch-Logs-Role' for predictable lookup

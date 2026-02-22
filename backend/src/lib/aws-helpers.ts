@@ -12,8 +12,11 @@ export interface AWSCredentials {
   region: string;
 }
 
+// Cache for assumed role credentials (key: roleArn, value: credentials + expiry)
+const assumeRoleCache = new Map<string, { creds: AWSCredentials; expiresAt: number }>();
+
 /**
- * Assume role para obter credenciais temporárias
+ * Assume role para obter credenciais temporárias (with caching)
  */
 export async function assumeRole(
   roleArn: string,
@@ -21,7 +24,16 @@ export async function assumeRole(
   region: string = 'us-east-1',
   sessionName: string = 'evo-uds-session'
 ): Promise<AWSCredentials> {
+  // Check cache — reuse credentials if still valid (with 5min buffer)
+  const cacheKey = `${roleArn}:${externalId}`;
+  const cached = assumeRoleCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now() + 300_000) {
+    return { ...cached.creds, region };
+  }
+
   const stsClient = new STSClient({ region });
+  
+  console.log('🔐 AssumeRole STS call (cache miss):', roleArn.split('/').pop());
   
   const command = new AssumeRoleCommand({
     RoleArn: roleArn,
@@ -36,12 +48,20 @@ export async function assumeRole(
     throw new Error('Failed to assume role: no credentials returned');
   }
   
-  return {
+  const creds: AWSCredentials = {
     accessKeyId: response.Credentials.AccessKeyId!,
     secretAccessKey: response.Credentials.SecretAccessKey!,
     sessionToken: response.Credentials.SessionToken,
     region,
   };
+
+  // Cache with expiry
+  assumeRoleCache.set(cacheKey, {
+    creds,
+    expiresAt: response.Credentials.Expiration?.getTime() || (Date.now() + 3600_000),
+  });
+
+  return creds;
 }
 
 /**
@@ -69,29 +89,20 @@ export async function resolveAwsCredentials(
   region: string
 ): Promise<AWSCredentials> {
   // PRIORITY 1: Se tem role_arn explícito, usa ele (mais confiável)
-  // Isso corrige o problema onde access_key_id com ROLE: prefix pode estar desatualizado
   if (credential.role_arn && credential.external_id) {
-    console.log('🔐 Assuming role (from role_arn):', credential.role_arn);
     return assumeRole(credential.role_arn, credential.external_id, region);
   }
   
   // PRIORITY 2: Check if access_key_id contains ROLE: prefix (CloudFormation deployment pattern)
-  // In this case, the role ARN is stored in access_key_id with ROLE: prefix
-  // and external_id is stored in secret_access_key with EXTERNAL_ID: prefix
   if (credential.access_key_id?.startsWith('ROLE:')) {
     const roleArn = credential.access_key_id.replace('ROLE:', '');
     const externalId = credential.external_id || 
                        credential.secret_access_key?.replace('EXTERNAL_ID:', '') || '';
-    
-    // MILITARY GRADE: Log only non-sensitive information
-    console.log('🔐 Assuming role (from ROLE: prefix):', roleArn);
-    console.log('🔐 External ID:', externalId ? '[REDACTED]' : 'EMPTY');
     return assumeRole(roleArn, externalId, region);
   }
   
   // Senão, usa credenciais diretas
   if (credential.access_key_id && credential.secret_access_key) {
-    console.log('🔑 Using direct credentials');
     return {
       accessKeyId: credential.access_key_id,
       secretAccessKey: credential.secret_access_key,

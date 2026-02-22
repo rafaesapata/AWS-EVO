@@ -28,13 +28,13 @@ export default defineConfig(({ mode }) => {
   },
   
   define: {
-    // Use 'globalThis' polyfill only for specific AWS SDK usage pattern.
-    // IMPORTANT: 'global' alone would replace ALL occurrences including local
-    // variables in dependencies, causing TDZ errors in minified builds.
-    'global.crypto': 'globalThis.crypto',
-    // Explicitly define demo credentials to prevent tree-shaking
-    'import.meta.env.VITE_DEMO_EMAIL': JSON.stringify(env.VITE_DEMO_EMAIL || 'comercial+evo@uds.com.br'),
-    'import.meta.env.VITE_DEMO_PASSWORD': JSON.stringify(env.VITE_DEMO_PASSWORD || 'Demoevouds@00!'),
+    // Only apply defines in production build — in dev mode, Vite's env.mjs
+    // tries to assign to readonly properties (e.g. globalThis.crypto) causing errors
+    ...(mode === 'production' ? {
+      'global.crypto': 'globalThis.crypto',
+      'import.meta.env.VITE_DEMO_EMAIL': JSON.stringify(env.VITE_DEMO_EMAIL || 'comercial+evo@uds.com.br'),
+      'import.meta.env.VITE_DEMO_PASSWORD': JSON.stringify(env.VITE_DEMO_PASSWORD || 'Demoevouds@00!'),
+    } : {}),
   },
   build: {
     target: 'es2020',

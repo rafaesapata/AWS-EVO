@@ -15,7 +15,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "invoke": "tsx scripts/invoke-local.ts",
-    "serve": "tsx scripts/local-server.ts"
+    "serve": "NODE_OPTIONS='--max-old-space-size=1024' tsx scripts/local-server.ts"
   },
   "dependencies": {
     "@aws-sdk/client-accessanalyzer": "^3.958.0",
