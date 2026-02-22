@@ -69,9 +69,41 @@ Carrega automaticamente de `backend/.env` e `.env` (root). Pode sobrescrever:
 | `LOCAL_ORG_ID` | organization_id | UUID aleatório |
 | `LOCAL_USER_ROLES` | roles do usuário | admin |
 
+## DB Tunnel (acesso ao RDS de produção)
+
+O RDS está em VPC privada. Para testar handlers com DB real, use o SSM tunnel via bastion:
+
+### Setup (uma vez)
+
+1. Instalar Session Manager plugin: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
+2. Deploy do bastion (se ainda não existe):
+```bash
+aws cloudformation deploy \
+  --template-file cloudformation/bastion-ssm-stack.yaml \
+  --stack-name evo-uds-v3-production-bastion \
+  --parameter-overrides \
+    Environment=production \
+    VpcId=<VPC_ID> \
+    PublicSubnetId=<PUBLIC_SUBNET_ID> \
+    DatabaseSecurityGroupId=<DB_SG_ID> \
+  --capabilities CAPABILITY_NAMED_IAM
+```
+
+### Uso diário
+
+```bash
+# Terminal 1: abrir tunnel
+./backend/scripts/db-tunnel.sh production
+
+# Terminal 2: invocar handler com DB real
+DATABASE_URL="postgresql://evoadmin:<password>@localhost:5432/evouds?schema=public" \
+npx tsx backend/scripts/invoke-local.ts security/waf-dashboard-api --body '{"action":"events"}'
+```
+
+O bastion é um `t4g.nano` ARM (~$3/mês), sem SSH, sem portas abertas — usa SSM Session Manager.
+
 ## Limitações
 
-- **Database**: O `DATABASE_URL` do `backend/.env` aponta para RDS na VPC. Para queries reais, use SSH tunnel ou aponte para DB local.
 - **AWS SDK calls**: Handlers que chamam AWS APIs (STS, WAF, etc.) precisam de credenciais AWS configuradas localmente (`~/.aws/credentials` ou env vars).
 - **Sem esbuild bundling**: O script roda TypeScript direto via tsx, não passa pelo esbuild. Imports de npm packages funcionam normalmente via node_modules.
 
@@ -80,4 +112,4 @@ Carrega automaticamente de `backend/.env` e `.env` (root). Pode sobrescrever:
 - Testar lógica de handlers antes de fazer push (evita esperar ~10min de deploy)
 - Debugar erros de parsing, validação, routing
 - Verificar que imports e dependências resolvem corretamente
-- Testar handlers que não dependem de DB ou AWS APIs externas
+- Testar com DB real via SSM tunnel
