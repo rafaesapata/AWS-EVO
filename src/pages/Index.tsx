@@ -166,15 +166,7 @@ const Index = () => {
   }
 
   if (activeTab === "tv-dashboards") {
-    return (
-      <Layout
-        title={t('sidebar.tvDashboards', 'TV Dashboards')}
-        description={t('tvDashboard.managementDesc', 'Gerencie links de acesso para exibição em TVs')}
-        icon={<Tv className="h-4 w-4" />}
-      >
-        <TVDashboardManagement />
-      </Layout>
-    );
+    return <TVDashboardManagement />;
   }
 
   if (activeTab === "security-analysis") {
