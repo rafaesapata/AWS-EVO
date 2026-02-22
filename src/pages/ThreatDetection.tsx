@@ -100,7 +100,8 @@ export default function ThreatDetection() {
  const result = await apiClient.select('lateral_movement_detections', {
  select: '*',
  eq: { organization_id: organizationId, status: 'active' },
- order: { column: 'detected_at', ascending: false }
+ order: { column: 'detected_at', ascending: false },
+ limit: 100
  });
  
  if (result.error) throw result.error;

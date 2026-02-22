@@ -2527,21 +2527,22 @@ model AiNotification {
 // Sistema de templates de email e configurações por organização
 
 model EmailTemplate {
-  id              String   @id @default(uuid()) @db.Uuid
-  template_type   String   @unique // 'welcome', 'daily_summary', 'weekly_report', 'critical_alert', etc.
-  name            String
-  description     String?
-  subject         String
-  html_body       String   @db.Text
-  text_body       String?  @db.Text
-  variables       String[] @default([]) // Variables that can be used in template
-  category        String   @default("general") // 'onboarding', 'reports', 'alerts', 'security', 'costs', 'ai'
-  is_active       Boolean  @default(true)
-  is_system       Boolean  @default(false) // System templates cannot be deleted
-  created_by      String?  @db.Uuid
-  updated_by      String?  @db.Uuid
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  id                String   @id @default(uuid()) @db.Uuid
+  template_type     String   @unique // 'welcome', 'daily_summary', 'weekly_report', 'critical_alert', etc.
+  name              String
+  description       String?
+  subject           String
+  html_body         String   @db.Text
+  text_body         String?  @db.Text
+  variables         String[] @default([]) // Variables that can be used in template
+  category          String   @default("general") // 'onboarding', 'reports', 'alerts', 'security', 'costs', 'ai'
+  header_image_url  String?  // URL da imagem de header (S3 presigned ou público)
+  is_active         Boolean  @default(true)
+  is_system         Boolean  @default(false) // System templates cannot be deleted
+  created_by        String?  @db.Uuid
+  updated_by        String?  @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
   
   @@index([template_type])
   @@index([category])

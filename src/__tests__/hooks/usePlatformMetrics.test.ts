@@ -56,8 +56,8 @@ describe('usePlatformMetrics', () => {
   it('should fetch metrics successfully', async () => {
     const mockMetricsData = {
       coverage: {
-        totalLambdas: 114,
-        monitoredLambdas: 114,
+        totalLambdas: 219,
+        monitoredLambdas: 219,
         totalEndpoints: 111,
         monitoredEndpoints: 111,
         frontendCoverage: 100,
@@ -95,7 +95,7 @@ describe('usePlatformMetrics', () => {
 
     // Check data
     expect(result.current.metrics).toHaveLength(2);
-    expect(result.current.coverage.totalLambdas).toBe(114);
+    expect(result.current.coverage.totalLambdas).toBe(219);
   });
 
   it('should handle API errors gracefully', async () => {
@@ -130,8 +130,8 @@ describe('usePlatformMetrics', () => {
     });
 
     // Should return default coverage
-    expect(result.current.coverage.totalLambdas).toBe(114);
-    expect(result.current.coverage.monitoredLambdas).toBe(114);
+    expect(result.current.coverage.totalLambdas).toBe(219);
+    expect(result.current.coverage.monitoredLambdas).toBe(219);
   });
 });
 

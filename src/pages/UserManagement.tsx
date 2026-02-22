@@ -114,7 +114,8 @@ export default function UserManagement() {
       const response = await apiClient.select('profiles', {
         select: '*',
         eq: filters,
-        order: { column: 'created_at', ascending: false }
+        order: { column: 'created_at', ascending: false },
+        limit: 1000
       });
 
       if (response.error) {
@@ -241,7 +242,8 @@ export default function UserManagement() {
       if (isSuperAdmin && userData.organization_ids && userData.user_id) {
         // Get current profiles for this user
         const currentProfiles = await apiClient.select('profiles', {
-          eq: { user_id: userData.user_id }
+          eq: { user_id: userData.user_id },
+          limit: 100
         });
         
         const currentOrgIds = (currentProfiles.data || []).map((p: any) => p.organization_id);

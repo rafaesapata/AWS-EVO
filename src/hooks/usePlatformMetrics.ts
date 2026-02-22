@@ -117,8 +117,8 @@ async function fetchPlatformMetrics(): Promise<PlatformMetricsData> {
 
   return {
     coverage: data.coverage || {
-      totalLambdas: 114,
-      monitoredLambdas: 114,
+      totalLambdas: 219,
+      monitoredLambdas: 219,
       totalEndpoints: 111,
       monitoredEndpoints: 111,
       frontendCoverage: 100,
@@ -251,8 +251,8 @@ export function usePlatformMetrics() {
     metrics: metricsQuery.data?.metrics || [],
     performanceMetrics: metricsQuery.data?.performanceMetrics || [],
     coverage: metricsQuery.data?.coverage || {
-      totalLambdas: 114,
-      monitoredLambdas: 114,
+      totalLambdas: 219,
+      monitoredLambdas: 219,
       totalEndpoints: 111,
       monitoredEndpoints: 111,
       frontendCoverage: 100,

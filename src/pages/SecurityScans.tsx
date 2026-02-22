@@ -197,7 +197,8 @@ export default function SecurityScans() {
  // Get total count for pagination (separate query)
  const countResponse = await apiClient.select('security_scans', {
  select: 'id',
- eq: filters
+ eq: filters,
+ limit: 10000
  });
  
  const totalCount = countResponse.data?.length || 0;

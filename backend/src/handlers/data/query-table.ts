@@ -535,7 +535,7 @@ export async function handler(
     const results = await model.findMany({
       where,
       orderBy,
-      take: Math.min(body.limit || 100, 1000), // Default 100, max 1000 to prevent memory issues
+      take: Math.min(body.limit || 500, 10000), // Default 500, max 10000
       skip: body.offset || 0,  // Add offset support for pagination
     });
     

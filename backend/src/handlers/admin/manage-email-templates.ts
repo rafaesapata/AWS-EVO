@@ -11,6 +11,8 @@ import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { z } from 'zod';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // Field length constants for consistency with database schema
 const FIELD_LIMITS = {
@@ -31,6 +33,7 @@ const createTemplateSchema = z.object({
   text_body: z.string().optional(),
   variables: z.array(z.string()).default([]),
   category: z.string().max(FIELD_LIMITS.CATEGORY).default('general'),
+  header_image_url: z.string().url().optional(),
   is_active: z.boolean().default(true),
 });
 
@@ -44,6 +47,7 @@ const updateTemplateSchema = z.object({
   text_body: z.string().optional(),
   variables: z.array(z.string()).optional(),
   category: z.string().max(FIELD_LIMITS.CATEGORY).optional(),
+  header_image_url: z.string().url().nullable().optional(),
   is_active: z.boolean().optional(),
 });
 
@@ -71,6 +75,13 @@ const previewTemplateSchema = z.object({
   variables: z.record(z.string()).optional(),
 });
 
+const uploadImageSchema = z.object({
+  action: z.literal('upload_image'),
+  id: z.string().uuid(),
+  filename: z.string().min(1).max(255),
+  content_type: z.string().regex(/^image\/(png|jpeg|jpg|gif|svg\+xml|webp)$/),
+});
+
 // Combined schema using discriminated union for type safety
 const requestSchema = z.discriminatedUnion('action', [
   createTemplateSchema,
@@ -79,6 +90,7 @@ const requestSchema = z.discriminatedUnion('action', [
   listTemplatesSchema,
   getTemplateSchema,
   previewTemplateSchema,
+  uploadImageSchema,
 ]);
 
 type RequestData = z.infer<typeof requestSchema>;
@@ -94,6 +106,7 @@ interface EmailTemplateRow {
   text_body: string | null;
   variables: string[];
   category: string;
+  header_image_url: string | null;
   is_active: boolean;
   is_system: boolean;
   created_at: Date;
@@ -173,11 +186,11 @@ export async function handler(
         const result = await prisma.$queryRaw<IdResult[]>`
           INSERT INTO email_templates (
             template_type, name, description, subject, html_body, text_body, 
-            variables, category, is_active, is_system, created_by, updated_by
+            variables, category, header_image_url, is_active, is_system, created_by, updated_by
           ) VALUES (
             ${data.template_type}, ${data.name}, ${data.description || null}, 
             ${data.subject}, ${data.html_body}, ${data.text_body || null},
-            ${data.variables}::text[], ${data.category}, ${data.is_active}, 
+            ${data.variables}::text[], ${data.category}, ${data.header_image_url || null}, ${data.is_active}, 
             false, ${user.sub}::uuid, ${user.sub}::uuid
           )
           RETURNING id

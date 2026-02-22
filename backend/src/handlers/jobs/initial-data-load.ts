@@ -200,27 +200,31 @@ export async function handler(
           } catch (e) { progress.errors.push(`SG ${region}: ${e}`); }
         }
 
-        // Lambda Functions
+        // Lambda Functions (with pagination)
         if (typesToLoad.includes('Lambda')) {
           progress.current = `Loading Lambda functions in ${region}`;
           try {
-            const functions = await lambdaClient.send(new ListFunctionsCommand({}));
-            for (const fn of functions.Functions || []) {
-              allResources.push({
-                resourceId: fn.FunctionArn,
-                resourceType: 'Lambda',
-                region,
-                name: fn.FunctionName,
-                state: fn.State || 'Active',
-                metadata: {
-                  runtime: fn.Runtime,
-                  memorySize: fn.MemorySize,
-                  timeout: fn.Timeout,
-                  lastModified: fn.LastModified
-                }
-              });
-              progress.completed++;
-            }
+            let marker: string | undefined;
+            do {
+              const functions = await lambdaClient.send(new ListFunctionsCommand({ MaxItems: 50, Marker: marker }));
+              for (const fn of functions.Functions || []) {
+                allResources.push({
+                  resourceId: fn.FunctionArn,
+                  resourceType: 'Lambda',
+                  region,
+                  name: fn.FunctionName,
+                  state: fn.State || 'Active',
+                  metadata: {
+                    runtime: fn.Runtime,
+                    memorySize: fn.MemorySize,
+                    timeout: fn.Timeout,
+                    lastModified: fn.LastModified
+                  }
+                });
+                progress.completed++;
+              }
+              marker = functions.NextMarker;
+            } while (marker);
           } catch (e) { progress.errors.push(`Lambda ${region}: ${e}`); }
         }
       }

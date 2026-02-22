@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 interface LambdaHealth {
  name: string;
  displayName: string;
- category: 'onboarding' | 'security' | 'auth' | 'core' | 'admin' | 'dashboard' | 'ai' | 'license' | 'kb' | 'reports' | 'organizations' | 'notifications' | 'storage' | 'jobs' | 'integrations';
+ category: 'onboarding' | 'security' | 'auth' | 'core' | 'admin' | 'dashboard' | 'ai' | 'license' | 'kb' | 'reports' | 'organizations' | 'notifications' | 'storage' | 'jobs' | 'integrations' | 'tags';
  status: 'healthy' | 'degraded' | 'critical' | 'unknown';
  health: number;
  metrics: {

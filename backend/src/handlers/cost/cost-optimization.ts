@@ -755,8 +755,13 @@ async function analyzeLambda(region: string, creds: any, optimizations: Optimiza
   const lambda = new LambdaClient({ region, credentials: creds });
   
   try {
-    const response = await lambda.send(new ListFunctionsCommand({}));
-    const functions = response.Functions || [];
+    const functions: any[] = [];
+    let marker: string | undefined;
+    do {
+      const response = await lambda.send(new ListFunctionsCommand({ MaxItems: 50, Marker: marker }));
+      functions.push(...(response.Functions || []));
+      marker = response.NextMarker;
+    } while (marker);
     
     for (const fn of functions) {
       const fnName = fn.FunctionName || 'unknown';

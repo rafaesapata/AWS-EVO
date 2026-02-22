@@ -2,7 +2,7 @@
  * Get Platform Metrics - Military-Grade Coverage
  * 
  * Agrega métricas de TODAS as Lambdas, Endpoints e Frontend
- * - 114+ Lambda functions com cold start tracking
+ * - 219 Lambda functions com cold start tracking
  * - 111 API Gateway endpoints
  * - Frontend errors
  * - Performance metrics com percentis

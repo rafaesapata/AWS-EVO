@@ -629,7 +629,8 @@ export default function CostOptimization() {
       const response = await apiClient.select('cost_optimizations', {
         select: '*',
         eq: filters,
-        order: { column: 'potential_savings', ascending: false }
+        order: { column: 'potential_savings', ascending: false },
+        limit: 1000
       });
 
       if (response.error) {
@@ -722,7 +723,8 @@ export default function CostOptimization() {
       
       const recsResponse = await apiClient.select('cost_optimizations', {
         select: '*',
-        eq: orgFilter
+        eq: orgFilter,
+        limit: 1000
       });
       
       const recs = recsResponse.data || [];
@@ -737,14 +739,16 @@ export default function CostOptimization() {
         select: '*',
         eq: orgFilter,
         gte: { date: startOfPrevMonth.toISOString().split('T')[0] },
-        lt: { date: startOfCurrentMonth.toISOString().split('T')[0] }
+        lt: { date: startOfCurrentMonth.toISOString().split('T')[0] },
+        limit: 1000
       });
 
       // Fetch current month costs (partial)
       const currentMonthResponse = await apiClient.select('daily_costs', {
         select: '*',
         eq: orgFilter,
-        gte: { date: startOfCurrentMonth.toISOString().split('T')[0] }
+        gte: { date: startOfCurrentMonth.toISOString().split('T')[0] },
+        limit: 1000
       });
 
       const prevCosts = prevMonthResponse.data || [];

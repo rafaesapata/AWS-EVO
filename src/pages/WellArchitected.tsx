@@ -103,7 +103,8 @@ const WellArchitected = () => {
       });
       const roles = await apiClient.select('user_roles', {
         select: 'role',
-        eq: { user_id: user.username }
+        eq: { user_id: user.username },
+        limit: 100
       });
       return { ...profile.data?.[0], roles: roles.data?.map((r: any) => r.role) || [] };
     },
@@ -120,6 +121,7 @@ const WellArchitected = () => {
       const result = await apiClient.select('remediation_tickets', {
         select: 'id, title, status, metadata, created_at, category',
         eq: { organization_id: userProfile.organization_id },
+        limit: 1000
       });
       // Filter client-side for WA-related tickets (well_architected or those with wa_ metadata)
       const all = result.data || [];

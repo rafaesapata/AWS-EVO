@@ -124,7 +124,8 @@ function KnowledgeBaseContent() {
         if (user) {
           const favs = await apiClient.select('knowledge_base_favorites', {
             select: 'article_id',
-            eq: { user_id: user.id }
+            eq: { user_id: user.id },
+            limit: 1000
           });
           
           if (favs.data && favs.data.length > 0) {
@@ -132,7 +133,8 @@ function KnowledgeBaseContent() {
             // Fetch articles by IDs
             const articlesResult = await apiClient.select<KBArticle>('knowledge_base_articles', {
               eq: { organization_id: orgId },
-              order: { column: 'created_at', ascending: false }
+              order: { column: 'created_at', ascending: false },
+              limit: 1000
             });
             
             if (articlesResult.error) {
@@ -168,7 +170,7 @@ function KnowledgeBaseContent() {
         queryOptions.ilike = { title: `%${debouncedSearch}%` };
       }
 
-      const result = await apiClient.select<KBArticle>('knowledge_base_articles', queryOptions);
+      const result = await apiClient.select<KBArticle>('knowledge_base_articles', { ...queryOptions, limit: 1000 });
       
       if (result.error) {
         console.error('Error fetching articles:', result.error);
@@ -182,7 +184,8 @@ function KnowledgeBaseContent() {
         const contentResult = await apiClient.select<KBArticle>('knowledge_base_articles', {
           eq: filters,
           ilike: { content: `%${debouncedSearch}%` },
-          order: { column: 'created_at', ascending: false }
+          order: { column: 'created_at', ascending: false },
+          limit: 1000
         });
         
         if (!contentResult.error) {
@@ -200,7 +203,8 @@ function KnowledgeBaseContent() {
     async (orgId) => {
       const result = await apiClient.select('knowledge_base_articles', {
         select: 'approval_status',
-        eq: { organization_id: orgId }
+        eq: { organization_id: orgId },
+        limit: 10000
       });
 
       if (result.error) throw new Error(getErrorMessage(result.error));

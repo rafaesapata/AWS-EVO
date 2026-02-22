@@ -143,7 +143,8 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
      eq: { organization_id: organizationId, ...getAccountFilter() },
      gte: { date: startDateStr },
      lte: { date: endDateStr },
-     order: { column: 'date', ascending: false }
+     order: { column: 'date', ascending: false },
+     limit: 1000
    });
    return response.data || [];
  }

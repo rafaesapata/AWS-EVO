@@ -1130,9 +1130,16 @@ async function analyzeLambdaFunctions(
     const lambdaClient = new LambdaClient({ region, credentials });
     const cwClient = new CloudWatchClient({ region, credentials });
     
-    const response = await lambdaClient.send(new ListFunctionsCommand({ MaxItems: maxFunctions }));
+    const allFunctions: any[] = [];
+    let fnMarker: string | undefined;
+    do {
+      const response = await lambdaClient.send(new ListFunctionsCommand({ MaxItems: 50, Marker: fnMarker }));
+      allFunctions.push(...(response.Functions || []));
+      fnMarker = response.NextMarker;
+      if (allFunctions.length >= maxFunctions) break;
+    } while (fnMarker);
     
-    for (const fn of response.Functions || []) {
+    for (const fn of allFunctions.slice(0, maxFunctions)) {
       if (Date.now() - startTime > remainingTime - TIME_BUFFER_MS) break;
       
       const functionName = fn.FunctionName!;

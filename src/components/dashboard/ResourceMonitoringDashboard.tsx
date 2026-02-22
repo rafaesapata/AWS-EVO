@@ -447,7 +447,8 @@ export const ResourceMonitoringDashboard = () => {
       
       // Query monitored_resources - Multi-cloud compatible using getAccountFilter()
       const resourceResponse = await apiClient.select('monitored_resources', { 
-        eq: { organization_id: organizationId, ...getAccountFilter() } 
+        eq: { organization_id: organizationId, ...getAccountFilter() },
+        limit: 1000
       });
       return (resourceResponse.data || []) as MonitoredResource[];
     },

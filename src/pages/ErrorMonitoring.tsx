@@ -418,8 +418,8 @@ export default function ErrorMonitoring() {
  const [alarms, setAlarms] = useState<AlarmStatus[]>([]);
  const [errorPatterns, setErrorPatterns] = useState<ErrorPattern[]>(MOCK_ERROR_PATTERNS);
  const [coverage, setCoverage] = useState<SystemCoverage>({
- totalLambdas: 114,
- monitoredLambdas: 114,
+ totalLambdas: 219,
+ monitoredLambdas: 219,
  totalEndpoints: 111,
  monitoredEndpoints: 111,
  frontendCoverage: 100,

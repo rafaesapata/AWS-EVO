@@ -133,7 +133,8 @@ export const EdgeMonitoring = () => {
         eq: { 
           organization_id: organizationId, 
           ...getAccountFilter() 
-        } 
+        },
+        limit: 1000
       });
       console.log('Edge resources found:', resourceResponse.data?.length, resourceResponse.data);
       return resourceResponse.data || [];
@@ -209,7 +210,8 @@ export const EdgeMonitoring = () => {
         eq: { 
           organization_id: organizationId, 
           ...getAccountFilter() 
-        } 
+        },
+        limit: 1000
       });
       const edgeCount = edgeCheckResponse.data?.filter(r => 
         ['alb', 'nlb', 'elb', 'cloudfront', 'waf', 'apigateway'].includes(r.resource_type)

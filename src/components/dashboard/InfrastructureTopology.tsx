@@ -182,7 +182,8 @@ export default function InfrastructureTopology() {
       const { data: resources, error } = await apiClient.select('resource_inventory', {
         select: '*',
         eq: filters,
-        order: { column: 'created_at', ascending: false }
+        order: { column: 'created_at', ascending: false },
+        limit: 1000
       });
 
       
