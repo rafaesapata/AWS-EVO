@@ -1,9 +1,10 @@
 /**
  * Security Report PDF Generator
- * Generates PDF reports for security scan results using pdfkit.
+ * Generates PDF reports for security scan results using pdf-lib.
+ * pdf-lib works with esbuild bundling (no external font files needed).
  */
 
-import PDFDocument from 'pdfkit';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 export interface PdfReportInput {
   scanId: string;
@@ -39,191 +40,250 @@ export interface PdfFindingSummary {
   category?: string;
 }
 
-const COLORS = {
+function hexToRgb(hex: string) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  return rgb(r, g, b);
+}
+
+const C = {
   critical: '#dc2626',
   high: '#ea580c',
   medium: '#ca8a04',
   low: '#2563eb',
   text: '#1f2937',
   muted: '#6b7280',
-  border: '#e5e7eb',
   success: '#166534',
   header: '#1e40af',
+  white: '#ffffff',
+  lightBg: '#f3f4f6',
 };
 
-function severityColor(sev: string): string {
+function sevColor(sev: string): string {
   const s = sev.toLowerCase();
-  if (s === 'critical') return COLORS.critical;
-  if (s === 'high') return COLORS.high;
-  if (s === 'medium') return COLORS.medium;
-  return COLORS.low;
+  if (s === 'critical') return C.critical;
+  if (s === 'high') return C.high;
+  if (s === 'medium') return C.medium;
+  return C.low;
 }
 
 function fmtDate(d: Date): string {
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  try {
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return new Date(d).toISOString().replace('T', ' ').substring(0, 16);
+  }
+}
+
+// Truncate text to fit within maxWidth
+function truncate(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return text.substring(0, maxChars - 3) + '...';
 }
 
 /**
- * Gera PDF do relatório de segurança usando pdfkit.
- * Baseado no padrão de security-scan-pdf-export.ts.
+ * Gera PDF do relatório de segurança usando pdf-lib.
+ * Compatível com esbuild bundling (sem arquivos .afm externos).
  */
-export function generateReportPdf(input: PdfReportInput): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    const doc = new PDFDocument({
-      size: 'A4',
-      margin: 50,
-      info: {
-        Title: 'EVO - Relatório de Segurança',
-        Author: 'EVO Platform',
-        Subject: 'Análise de Segurança Cloud',
-        Creator: 'EVO Platform v3.2',
-      },
-    });
+export async function generateReportPdf(input: PdfReportInput): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  doc.setTitle('EVO - Relatório de Segurança');
+  doc.setAuthor('EVO Platform');
+  doc.setSubject('Análise de Segurança Cloud');
+  doc.setCreator('EVO Platform v3.2');
 
-    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-    // ── Header ──
-    doc.fontSize(26).fillColor(COLORS.header).text('EVO', { align: 'center' });
-    doc.fontSize(10).fillColor(COLORS.muted).text('PLATFORM', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(16).fillColor(COLORS.text).text('Relatório de Segurança', { align: 'center' });
-    doc.moveDown(0.3);
-    doc.fontSize(11).fillColor(COLORS.muted).text(input.organizationName, { align: 'center' });
-    doc.moveDown(1);
+  const PAGE_W = 595.28; // A4
+  const PAGE_H = 841.89;
+  const MARGIN = 50;
+  const CONTENT_W = PAGE_W - 2 * MARGIN;
 
-    // Linha separadora
-    doc.strokeColor(COLORS.border).lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-    doc.moveDown(1);
+  let page = doc.addPage([PAGE_W, PAGE_H]);
+  let y = PAGE_H - MARGIN;
 
-    // ── Scan Info ──
-    doc.fontSize(14).fillColor(COLORS.header).text('Informações do Scan');
-    doc.moveDown(0.5);
-    doc.fontSize(10).fillColor(COLORS.muted);
-    doc.text(`Conta: ${input.accountName} (${input.cloudProvider})`);
-    doc.text(`Tipo: ${input.scanType === 'security' ? 'Segurança' : input.scanType}`);
-    doc.text(`Data: ${fmtDate(input.executedAt)}`);
-    doc.text(`Scan ID: ${input.scanId}`);
-    doc.moveDown(1.5);
+  function newPage() {
+    page = doc.addPage([PAGE_W, PAGE_H]);
+    y = PAGE_H - MARGIN;
+  }
 
-    // ── Resumo por Severidade ──
-    doc.fontSize(14).fillColor(COLORS.header).text('Resumo por Severidade');
-    doc.moveDown(0.5);
+  function checkPage(needed: number) {
+    if (y - needed < MARGIN + 30) newPage();
+  }
 
-    const tableTop = doc.y;
-    const col1 = 50;
-    const col2 = 200;
+  function drawText(text: string, x: number, size: number, color: string, bold = false) {
+    const f = bold ? fontBold : font;
+    // Sanitize: remove chars not in WinAnsi
+    const safe = text.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+    page.drawText(safe, { x, y, size, font: f, color: hexToRgb(color) });
+  }
 
-    const sevRows = [
-      { label: 'Crítico', count: input.summary.critical, color: COLORS.critical },
-      { label: 'Alto', count: input.summary.high, color: COLORS.high },
-      { label: 'Médio', count: input.summary.medium, color: COLORS.medium },
-      { label: 'Baixo', count: input.summary.low, color: COLORS.low },
-    ];
+  function drawLine(x1: number, x2: number, yPos: number) {
+    page.drawLine({ start: { x: x1, y: yPos }, end: { x: x2, y: yPos }, thickness: 0.5, color: hexToRgb('#e5e7eb') });
+  }
 
-    doc.fontSize(11).fillColor(COLORS.text);
-    doc.text('Severidade', col1, tableTop);
-    doc.text('Quantidade', col2, tableTop);
-    doc.moveDown(0.4);
-    doc.strokeColor(COLORS.border).lineWidth(0.5).moveTo(col1, doc.y).lineTo(350, doc.y).stroke();
-    doc.moveDown(0.3);
+  // ── Header ──
+  drawText('EVO', PAGE_W / 2 - fontBold.widthOfTextAtSize('EVO', 26) / 2, 26, C.header, true);
+  y -= 16;
+  drawText('PLATFORM', PAGE_W / 2 - font.widthOfTextAtSize('PLATFORM', 10) / 2, 10, C.muted);
+  y -= 22;
+  const title = 'Relatorio de Seguranca';
+  drawText(title, PAGE_W / 2 - font.widthOfTextAtSize(title, 16) / 2, 16, C.text);
+  y -= 16;
+  const orgName = truncate(input.organizationName, 60);
+  drawText(orgName, PAGE_W / 2 - font.widthOfTextAtSize(orgName, 11) / 2, 11, C.muted);
+  y -= 20;
 
-    for (const row of sevRows) {
-      const y = doc.y;
-      doc.fontSize(10).fillColor(row.color).text(row.label, col1, y);
-      doc.fillColor(COLORS.text).text(String(row.count), col2, y);
-      doc.moveDown(0.4);
+  drawLine(MARGIN, PAGE_W - MARGIN, y);
+  y -= 20;
+
+  // ── Scan Info ──
+  drawText('Informacoes do Scan', MARGIN, 14, C.header, true);
+  y -= 18;
+  const scanInfo = [
+    `Conta: ${input.accountName} (${input.cloudProvider})`,
+    `Tipo: ${input.scanType === 'security' ? 'Seguranca' : input.scanType}`,
+    `Data: ${fmtDate(input.executedAt)}`,
+    `Scan ID: ${input.scanId}`,
+  ];
+  for (const line of scanInfo) {
+    drawText(truncate(line, 90), MARGIN, 10, C.muted);
+    y -= 14;
+  }
+  y -= 10;
+
+  // ── Severity Summary ──
+  drawText('Resumo por Severidade', MARGIN, 14, C.header, true);
+  y -= 20;
+
+  const sevRows = [
+    { label: 'Critico', count: input.summary.critical, color: C.critical },
+    { label: 'Alto', count: input.summary.high, color: C.high },
+    { label: 'Medio', count: input.summary.medium, color: C.medium },
+    { label: 'Baixo', count: input.summary.low, color: C.low },
+  ];
+
+  // Table header
+  drawText('Severidade', MARGIN, 11, C.text, true);
+  drawText('Quantidade', MARGIN + 200, 11, C.text, true);
+  y -= 14;
+  drawLine(MARGIN, MARGIN + 300, y);
+  y -= 10;
+
+  for (const row of sevRows) {
+    drawText(row.label, MARGIN, 10, row.color);
+    drawText(String(row.count), MARGIN + 200, 10, C.text);
+    y -= 14;
+  }
+
+  drawLine(MARGIN, MARGIN + 300, y);
+  y -= 12;
+  drawText('Total', MARGIN, 11, C.text, true);
+  drawText(String(input.summary.total), MARGIN + 200, 11, C.text, true);
+  y -= 24;
+
+  // ── Comparison ──
+  if (input.comparison) {
+    const cmp = input.comparison;
+    checkPage(100);
+    drawText('Comparacao com Scan Anterior', MARGIN, 14, C.header, true);
+    y -= 18;
+    drawText(`Novos findings: +${cmp.newFindings.length}`, MARGIN, 10, C.text);
+    y -= 14;
+    drawText(`Findings resolvidos: -${cmp.resolvedFindings.length}`, MARGIN, 10, C.text);
+    y -= 14;
+    drawText(`Persistentes: ${cmp.persistentCount}`, MARGIN, 10, C.text);
+    y -= 14;
+    const sign = cmp.changePercentage > 0 ? '+' : '';
+    drawText(`Variacao: ${sign}${cmp.changePercentage.toFixed(1)}%`, MARGIN, 10, C.text);
+    y -= 20;
+
+    // New findings list
+    if (cmp.newFindings.length > 0) {
+      checkPage(30);
+      drawText(`Novos Findings (${cmp.newFindings.length})`, MARGIN, 12, C.critical, true);
+      y -= 16;
+      for (const f of cmp.newFindings.slice(0, 30)) {
+        checkPage(16);
+        const line = `[${f.severity.toUpperCase()}] ${truncate(f.title, 70)}${f.resourceId ? ' - ' + truncate(f.resourceId, 30) : ''}`;
+        drawText(truncate(line, 100), MARGIN + 10, 9, sevColor(f.severity));
+        y -= 12;
+      }
+      if (cmp.newFindings.length > 30) {
+        drawText(`... e mais ${cmp.newFindings.length - 30} novos findings`, MARGIN + 10, 9, C.muted);
+        y -= 12;
+      }
+      y -= 10;
     }
 
-    doc.strokeColor(COLORS.border).lineWidth(0.5).moveTo(col1, doc.y).lineTo(350, doc.y).stroke();
-    doc.moveDown(0.3);
-    doc.fontSize(11).fillColor(COLORS.text).font('Helvetica-Bold');
-    doc.text('Total', col1, doc.y);
-    doc.text(String(input.summary.total), col2, doc.y - 13);
-    doc.font('Helvetica');
-    doc.moveDown(1.5);
-
-    // ── Comparação com scan anterior ──
-    if (input.comparison) {
-      const cmp = input.comparison;
-      doc.fontSize(14).fillColor(COLORS.header).text('Comparação com Scan Anterior');
-      doc.moveDown(0.5);
-      doc.fontSize(10).fillColor(COLORS.text);
-      doc.text(`Novos findings: +${cmp.newFindings.length}`);
-      doc.text(`Findings resolvidos: -${cmp.resolvedFindings.length}`);
-      doc.text(`Persistentes: ${cmp.persistentCount}`);
-      const sign = cmp.changePercentage > 0 ? '+' : '';
-      doc.text(`Variação: ${sign}${cmp.changePercentage.toFixed(1)}%`);
-      doc.moveDown(1);
-
-      // Novos findings
-      if (cmp.newFindings.length > 0) {
-        doc.fontSize(12).fillColor(COLORS.critical).text(`Novos Findings (${cmp.newFindings.length})`);
-        doc.moveDown(0.3);
-        for (const f of cmp.newFindings.slice(0, 30)) {
-          if (doc.y > 720) doc.addPage();
-          doc.fontSize(9).fillColor(severityColor(f.severity)).text(`[${f.severity.toUpperCase()}]`, { continued: true });
-          doc.fillColor(COLORS.text).text(` ${f.title}${f.resourceId ? ' - ' + f.resourceId : ''}`);
-        }
-        if (cmp.newFindings.length > 30) {
-          doc.fontSize(9).fillColor(COLORS.muted).text(`... e mais ${cmp.newFindings.length - 30} novos findings`);
-        }
-        doc.moveDown(1);
+    // Resolved findings list
+    if (cmp.resolvedFindings.length > 0) {
+      checkPage(30);
+      drawText(`Findings Resolvidos (${cmp.resolvedFindings.length})`, MARGIN, 12, C.success, true);
+      y -= 16;
+      for (const f of cmp.resolvedFindings.slice(0, 30)) {
+        checkPage(16);
+        const line = `[${f.severity.toUpperCase()}] ${truncate(f.title, 70)}${f.resourceId ? ' - ' + truncate(f.resourceId, 30) : ''}`;
+        drawText(truncate(line, 100), MARGIN + 10, 9, sevColor(f.severity));
+        y -= 12;
       }
-
-      // Resolvidos
-      if (cmp.resolvedFindings.length > 0) {
-        if (doc.y > 700) doc.addPage();
-        doc.fontSize(12).fillColor(COLORS.success).text(`Findings Resolvidos (${cmp.resolvedFindings.length})`);
-        doc.moveDown(0.3);
-        for (const f of cmp.resolvedFindings.slice(0, 30)) {
-          if (doc.y > 720) doc.addPage();
-          doc.fontSize(9).fillColor(severityColor(f.severity)).text(`[${f.severity.toUpperCase()}]`, { continued: true });
-          doc.fillColor(COLORS.text).text(` ${f.title}${f.resourceId ? ' - ' + f.resourceId : ''}`);
-        }
-        if (cmp.resolvedFindings.length > 30) {
-          doc.fontSize(9).fillColor(COLORS.muted).text(`... e mais ${cmp.resolvedFindings.length - 30} findings resolvidos`);
-        }
-        doc.moveDown(1);
+      if (cmp.resolvedFindings.length > 30) {
+        drawText(`... e mais ${cmp.resolvedFindings.length - 30} findings resolvidos`, MARGIN + 10, 9, C.muted);
+        y -= 12;
       }
+      y -= 10;
     }
+  }
 
-    // ── Todos os Findings ──
-    if (input.findings.length > 0) {
-      doc.addPage();
-      doc.fontSize(14).fillColor(COLORS.header).text('Detalhamento de Findings');
-      doc.moveDown(0.5);
+  // ── All Findings Detail ──
+  if (input.findings.length > 0) {
+    newPage();
+    drawText('Detalhamento de Findings', MARGIN, 14, C.header, true);
+    y -= 22;
 
-      for (let i = 0; i < input.findings.length; i++) {
-        if (doc.y > 700) doc.addPage();
-        const f = input.findings[i];
-        const sev = (f.severity || 'low').toLowerCase();
+    for (let i = 0; i < input.findings.length; i++) {
+      checkPage(60);
+      const f = input.findings[i];
+      const sev = (f.severity || 'low').toLowerCase();
+      const titleText = `${i + 1}. ${truncate(f.title || f.description || 'Finding', 80)}`;
 
-        doc.fontSize(10).fillColor(COLORS.text).font('Helvetica-Bold');
-        doc.text(`${i + 1}. ${f.title || f.description || 'Finding'}`, { width: 460 });
-        doc.font('Helvetica');
+      drawText(titleText, MARGIN, 10, C.text, true);
+      y -= 13;
+      drawText(`[${sev.toUpperCase()}]`, MARGIN, 8, sevColor(sev));
+      y -= 11;
 
-        doc.fontSize(8).fillColor(severityColor(sev)).text(`[${sev.toUpperCase()}]`);
-
-        doc.fontSize(8).fillColor(COLORS.muted);
-        if (f.service) doc.text(`Serviço: ${f.service}`);
-        if (f.resourceId) doc.text(`Recurso: ${f.resourceId}`);
-        if (f.category) doc.text(`Categoria: ${f.category}`);
-        if (f.remediation) {
-          doc.fontSize(8).fillColor(COLORS.success).text(`Remediação: ${f.remediation}`, { width: 460 });
-        }
-        doc.moveDown(0.8);
+      if (f.service) {
+        drawText(`Servico: ${truncate(f.service, 60)}`, MARGIN + 10, 8, C.muted);
+        y -= 11;
       }
+      if (f.resourceId) {
+        drawText(`Recurso: ${truncate(f.resourceId, 70)}`, MARGIN + 10, 8, C.muted);
+        y -= 11;
+      }
+      if (f.category) {
+        drawText(`Categoria: ${truncate(f.category, 50)}`, MARGIN + 10, 8, C.muted);
+        y -= 11;
+      }
+      if (f.remediation) {
+        drawText(`Remediacao: ${truncate(f.remediation, 80)}`, MARGIN + 10, 8, C.success);
+        y -= 11;
+      }
+      y -= 8;
     }
+  }
 
-    // ── Footer ──
-    doc.fontSize(8).fillColor(COLORS.muted);
-    const footerText = `Gerado por EVO Platform - ${fmtDate(new Date())}`;
-    doc.text(footerText, 50, doc.page.height - 50, { align: 'center', width: 495 });
-
-    doc.end();
+  // ── Footer on last page ──
+  const footerText = `Gerado por EVO Platform - ${fmtDate(new Date())}`;
+  page.drawText(footerText.replace(/[^\x20-\x7E\xA0-\xFF]/g, ''), {
+    x: MARGIN,
+    y: MARGIN - 10,
+    size: 8,
+    font,
+    color: hexToRgb(C.muted),
   });
-}
 
+  const pdfBytes = await doc.save();
+  return Buffer.from(pdfBytes);
+}
