@@ -29,6 +29,8 @@ const RISP_ANALYZER_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
   { path: 'savingsPlans', type: 'object', fields: ['totalMonthlySavings'] },
   { path: 'currentResources', type: 'object', fields: ['totalMonthlyCost'] },
   { path: 'potentialSavings', type: 'object', fields: ['monthly', 'annual'] },
+  { path: 'executiveSummary', type: 'object', fields: ['potentialAnnualSavings'] },
+  { path: 'recommendations', type: 'array', fields: ['potentialSavings.monthly', 'potentialSavings.annual'] },
 ];
 import { 
   EC2Client, 

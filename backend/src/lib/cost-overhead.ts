@@ -111,6 +111,7 @@ export async function applyOverhead<T extends Record<string, any>>(
 
 /**
  * Apply multiplier to numeric fields in each item of an array.
+ * Supports dot notation for nested fields (e.g. "potentialSavings.monthly").
  * Mutates in place.
  */
 export function applyMultiplierToArray<T extends Record<string, any>>(
@@ -120,8 +121,9 @@ export function applyMultiplierToArray<T extends Record<string, any>>(
 ): T[] {
   for (const item of items) {
     for (const field of fields) {
-      if (typeof item[field] === 'number') {
-        (item as any)[field] = roundTwo(item[field] * multiplier);
+      const val = getNestedValue(item, field);
+      if (typeof val === 'number') {
+        setNestedValue(item, field, roundTwo(val * multiplier));
       }
     }
   }
@@ -178,8 +180,10 @@ function roundTwo(n: number): number {
 /**
  * Get a nested value from an object using dot notation.
  * e.g. getNestedValue(obj, "summary.totalCost")
+ * Empty string returns the object itself (root level).
  */
 function getNestedValue(obj: any, path: string): any {
+  if (path === '') return obj;
   const parts = path.split('.');
   let current = obj;
   for (const part of parts) {
@@ -191,8 +195,10 @@ function getNestedValue(obj: any, path: string): any {
 
 /**
  * Set a nested value in an object using dot notation.
+ * Empty string path is not supported for set (no-op).
  */
 function setNestedValue(obj: any, path: string, value: any): void {
+  if (path === '') return;
   const parts = path.split('.');
   let current = obj;
   for (let i = 0; i < parts.length - 1; i++) {

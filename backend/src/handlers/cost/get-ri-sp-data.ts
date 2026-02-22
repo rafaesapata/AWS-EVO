@@ -15,9 +15,12 @@ import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead
 
 const RISP_DATA_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
   { path: 'reservedInstances', type: 'object', fields: ['totalMonthlySavings'] },
+  { path: 'reservedInstances.ec2', type: 'array', fields: ['monthlyCost', 'hourlyCost'] },
+  { path: 'reservedInstances.rds', type: 'array', fields: ['monthlyCost', 'hourlyCost'] },
   { path: 'savingsPlans', type: 'object', fields: ['totalMonthlySavings'] },
   { path: 'potentialSavings', type: 'object', fields: ['monthly', 'annual'] },
   { path: 'executiveSummary', type: 'object', fields: ['potentialAnnualSavings'] },
+  { path: 'recommendations', type: 'array', fields: ['potentialSavings.monthly', 'potentialSavings.annual'] },
 ];
 
 const HOURS_PER_MONTH = 730;

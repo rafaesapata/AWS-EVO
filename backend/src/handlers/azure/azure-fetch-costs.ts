@@ -19,7 +19,7 @@ import { logger } from '../../lib/logger.js';
 import { getHttpMethod } from '../../lib/middleware.js';
 import { z } from 'zod';
 import { fetchWithRetry, DEFAULT_AZURE_RETRY_CONFIG } from '../../lib/azure-retry.js';
-import { applyOverhead, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
+import { applyOverhead, getOverheadPercentage, type OverheadFieldConfig } from '../../lib/cost-overhead.js';
 
 const AZURE_COSTS_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
   { path: 'summary', type: 'object', fields: ['totalCost'] },
@@ -651,12 +651,13 @@ export async function handler(
       ...(firstSaveError ? { debug: { saveError: firstSaveError, sampleCost: costs[0] } } : {}),
     };
     const responseWithOverhead = await applyOverhead(organizationId, azureCostResponse, AZURE_COSTS_OVERHEAD_FIELDS);
-    // byService has dynamic keys with numeric values - apply same multiplier if overhead was applied
+    // byService has dynamic keys with numeric values - apply same overhead
     if (responseWithOverhead !== azureCostResponse && responseWithOverhead.byService) {
-      const multiplier = totalCost > 0 ? responseWithOverhead.summary.totalCost / totalCost : 1;
+      const pct = await getOverheadPercentage(organizationId);
+      const mult = 1 + pct / 100;
       for (const key of Object.keys(responseWithOverhead.byService)) {
         if (typeof responseWithOverhead.byService[key] === 'number') {
-          responseWithOverhead.byService[key] = Math.round(responseWithOverhead.byService[key] * multiplier * 100) / 100;
+          responseWithOverhead.byService[key] = Math.round(responseWithOverhead.byService[key] * mult * 100) / 100;
         }
       }
     }

@@ -18,6 +18,7 @@ const RISP_ANALYSIS_OVERHEAD_FIELDS: OverheadFieldConfig[] = [
   { path: 'savingsPlans', type: 'object', fields: ['totalMonthlySavings'] },
   { path: 'potentialSavings', type: 'object', fields: ['monthly', 'annual'] },
   { path: 'executiveSummary', type: 'object', fields: ['potentialAnnualSavings'] },
+  { path: 'recommendations', type: 'array', fields: ['potentialSavings.monthly', 'potentialSavings.annual', 'annualSavings'] },
 ];
 
 interface GetRiSpAnalysisInput {
