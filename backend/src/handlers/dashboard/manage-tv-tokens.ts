@@ -7,6 +7,7 @@ import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/
 import { manageTvTokensSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
 import { isOrganizationInDemoMode, generateDemoTvTokens } from '../../lib/demo-data-service.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import * as crypto from 'crypto';
 
 export async function handler(
@@ -50,6 +51,16 @@ export async function handler(
 
     switch (action) {
       case 'list': {
+        // Auto-cleanup: deactivate expired tokens
+        await prisma.tvDisplayToken.updateMany({
+          where: {
+            organization_id: organizationId,
+            is_active: true,
+            expires_at: { lt: new Date() },
+          },
+          data: { is_active: false },
+        });
+
         const tokens = await prisma.tvDisplayToken.findMany({
           where: { organization_id: organizationId },
           orderBy: { created_at: 'desc' }
@@ -76,6 +87,7 @@ export async function handler(
         });
 
         logger.info('TV token created', { tokenId: newToken.id, organizationId });
+        logAuditAsync({ organizationId, userId: user.sub, action: 'TV_TOKEN_CREATE', resourceType: 'tv_token', resourceId: newToken.id, details: { name, expirationDays }, ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event) });
         return success({ success: true, token: newToken }, 200, origin);
       }
 
@@ -121,6 +133,7 @@ export async function handler(
         });
 
         logger.info('TV token deleted', { tokenId, organizationId });
+        logAuditAsync({ organizationId, userId: user.sub, action: 'TV_TOKEN_DELETE', resourceType: 'tv_token', resourceId: tokenId, details: {}, ipAddress: getIpFromEvent(event), userAgent: getUserAgentFromEvent(event) });
         return success({ success: true }, 200, origin);
       }
 

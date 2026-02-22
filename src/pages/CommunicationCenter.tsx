@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Mail, MessageSquare, Bell, Send, Webhook, Filter, Search, RefreshCw, Eye } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Mail, MessageSquare, Bell, Send, Webhook, Filter, Search, RefreshCw, Eye, RotateCw, Forward } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -22,8 +22,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 interface CommunicationLog {
@@ -94,6 +95,32 @@ export default function CommunicationCenter() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLog, setSelectedLog] = useState<CommunicationLog | null>(null);
+  const [forwardEmail, setForwardEmail] = useState('');
+  const [showForwardInput, setShowForwardInput] = useState(false);
+  const queryClient = useQueryClient();
+
+  const resendMutation = useMutation({
+    mutationFn: async ({ logId, newRecipient }: { logId: string; newRecipient?: string }) => {
+      const response = await apiClient.invoke('resend-communication', {
+        body: { communicationLogId: logId, newRecipient },
+      });
+      if (response.error) throw response.error;
+      return response.data as { success: boolean; recipient: string; newLogId: string; error?: string };
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success(t('communication.resendSuccess', { recipient: data.recipient }));
+      } else {
+        toast.error(t('communication.resendFailed', { error: data.error || 'Unknown error' }));
+      }
+      queryClient.invalidateQueries({ queryKey: ['communication-logs'] });
+      setShowForwardInput(false);
+      setForwardEmail('');
+    },
+    onError: (err: any) => {
+      toast.error(t('communication.resendError'));
+    },
+  });
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['communication-logs', organizationId, selectedAccountId, page, channelFilter, statusFilter, searchTerm],
@@ -412,6 +439,55 @@ export default function CommunicationCenter() {
                         <pre className="mt-1 p-3 rounded-md bg-muted/50 text-xs overflow-x-auto">
                           {JSON.stringify(selectedLog.metadata, null, 2)}
                         </pre>
+                      </div>
+                    )}
+
+                    {/* Resend Actions - only for email channel */}
+                    {selectedLog.channel === 'email' && (
+                      <div className="pt-4 border-t space-y-3">
+                        <label className="text-sm font-medium text-muted-foreground">{t('communication.actions')}</label>
+                        <div className="flex gap-2">
+                          <Button
+                            className="glass hover-glow"
+                            size="sm"
+                            disabled={resendMutation.isPending}
+                            onClick={() => resendMutation.mutate({ logId: selectedLog.id })}
+                          >
+                            <RotateCw className={`h-4 w-4 mr-2 ${resendMutation.isPending ? 'animate-spin' : ''}`} />
+                            {t('communication.resend')}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowForwardInput(!showForwardInput)}
+                          >
+                            <Forward className="h-4 w-4 mr-2" />
+                            {t('communication.sendToAnother')}
+                          </Button>
+                        </div>
+                        {showForwardInput && (
+                          <div className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <Label htmlFor="forward-email" className="text-sm">{t('communication.newRecipient')}</Label>
+                              <Input
+                                id="forward-email"
+                                type="email"
+                                placeholder="email@exemplo.com"
+                                value={forwardEmail}
+                                onChange={(e) => setForwardEmail(e.target.value)}
+                              />
+                            </div>
+                            <Button
+                              className="glass hover-glow"
+                              size="sm"
+                              disabled={!forwardEmail || resendMutation.isPending}
+                              onClick={() => resendMutation.mutate({ logId: selectedLog.id, newRecipient: forwardEmail })}
+                            >
+                              <Send className={`h-4 w-4 mr-2 ${resendMutation.isPending ? 'animate-spin' : ''}`} />
+                              {t('communication.send')}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

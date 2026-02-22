@@ -160,65 +160,155 @@ export const handler = safeHandler(async (
 });
 
 async function getEC2Metrics(client: CloudWatchClient, instanceId: string, start: Date, end: Date) {
-  const command = new GetMetricStatisticsCommand({
-    Namespace: 'AWS/EC2',
-    MetricName: 'CPUUtilization',
-    ...(instanceId !== 'all' && {
-      Dimensions: [{ Name: 'InstanceId', Value: instanceId }],
-    }),
-    StartTime: start,
-    EndTime: end,
-    Period: 60,
-    Statistics: ['Average', 'Maximum'],
-  });
+  const metrics: Record<string, number> = {};
   
-  const response = await client.send(command);
-  const latest = response.Datapoints?.[response.Datapoints.length - 1];
-  
-  return {
-    cpuUtilization: latest?.Average || 0,
-    cpuMax: latest?.Maximum || 0,
-  };
+  const metricNames = [
+    { name: 'CPUUtilization', stats: ['Average', 'Maximum'] },
+    { name: 'NetworkIn', stats: ['Sum'] },
+    { name: 'NetworkOut', stats: ['Sum'] },
+    { name: 'DiskReadOps', stats: ['Sum'] },
+    { name: 'DiskWriteOps', stats: ['Sum'] },
+    { name: 'StatusCheckFailed', stats: ['Maximum'] },
+  ];
+
+  const results = await Promise.allSettled(
+    metricNames.map(async ({ name, stats }) => {
+      const command = new GetMetricStatisticsCommand({
+        Namespace: 'AWS/EC2',
+        MetricName: name,
+        ...(instanceId !== 'all' && {
+          Dimensions: [{ Name: 'InstanceId', Value: instanceId }],
+        }),
+        StartTime: start,
+        EndTime: end,
+        Period: 60,
+        Statistics: stats as any[],
+      });
+      const response = await client.send(command);
+      const sorted = (response.Datapoints || []).sort((a, b) => 
+        (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0)
+      );
+      return { name, datapoint: sorted[0] };
+    })
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value.datapoint) {
+      const dp = result.value.datapoint;
+      const name = result.value.name;
+      if (name === 'CPUUtilization') {
+        metrics.cpuUtilization = dp.Average || 0;
+        metrics.cpuMax = dp.Maximum || 0;
+      } else if (name === 'NetworkIn') {
+        metrics.networkInBytes = dp.Sum || 0;
+      } else if (name === 'NetworkOut') {
+        metrics.networkOutBytes = dp.Sum || 0;
+      } else if (name === 'StatusCheckFailed') {
+        metrics.statusCheckFailed = dp.Maximum || 0;
+      }
+    }
+  }
+
+  return metrics;
 }
 
 async function getRDSMetrics(client: CloudWatchClient, dbId: string, start: Date, end: Date) {
-  const command = new GetMetricStatisticsCommand({
-    Namespace: 'AWS/RDS',
-    MetricName: 'CPUUtilization',
-    ...(dbId !== 'all' && {
-      Dimensions: [{ Name: 'DBInstanceIdentifier', Value: dbId }],
-    }),
-    StartTime: start,
-    EndTime: end,
-    Period: 60,
-    Statistics: ['Average'],
-  });
-  
-  const response = await client.send(command);
-  const latest = response.Datapoints?.[response.Datapoints.length - 1];
-  
-  return {
-    cpuUtilization: latest?.Average || 0,
-  };
+  const metrics: Record<string, number> = {};
+
+  const metricNames = [
+    { name: 'CPUUtilization', stats: ['Average'] },
+    { name: 'FreeableMemory', stats: ['Average'] },
+    { name: 'DatabaseConnections', stats: ['Average'] },
+    { name: 'ReadIOPS', stats: ['Average'] },
+    { name: 'WriteIOPS', stats: ['Average'] },
+    { name: 'FreeStorageSpace', stats: ['Average'] },
+  ];
+
+  const results = await Promise.allSettled(
+    metricNames.map(async ({ name, stats }) => {
+      const command = new GetMetricStatisticsCommand({
+        Namespace: 'AWS/RDS',
+        MetricName: name,
+        ...(dbId !== 'all' && {
+          Dimensions: [{ Name: 'DBInstanceIdentifier', Value: dbId }],
+        }),
+        StartTime: start,
+        EndTime: end,
+        Period: 60,
+        Statistics: stats as any[],
+      });
+      const response = await client.send(command);
+      const sorted = (response.Datapoints || []).sort((a, b) => 
+        (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0)
+      );
+      return { name, datapoint: sorted[0] };
+    })
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value.datapoint) {
+      const dp = result.value.datapoint;
+      const name = result.value.name;
+      if (name === 'CPUUtilization') metrics.cpuUtilization = dp.Average || 0;
+      else if (name === 'FreeableMemory') metrics.freeableMemoryMB = Math.round((dp.Average || 0) / 1024 / 1024);
+      else if (name === 'DatabaseConnections') metrics.connections = dp.Average || 0;
+      else if (name === 'ReadIOPS') metrics.readIOPS = dp.Average || 0;
+      else if (name === 'WriteIOPS') metrics.writeIOPS = dp.Average || 0;
+      else if (name === 'FreeStorageSpace') metrics.freeStorageGB = Math.round((dp.Average || 0) / 1024 / 1024 / 1024 * 100) / 100;
+    }
+  }
+
+  return metrics;
 }
 
 async function getLambdaMetrics(client: CloudWatchClient, functionName: string, start: Date, end: Date) {
-  const command = new GetMetricStatisticsCommand({
-    Namespace: 'AWS/Lambda',
-    MetricName: 'Invocations',
-    ...(functionName !== 'all' && {
-      Dimensions: [{ Name: 'FunctionName', Value: functionName }],
-    }),
-    StartTime: start,
-    EndTime: end,
-    Period: 60,
-    Statistics: ['Sum'],
-  });
-  
-  const response = await client.send(command);
-  const latest = response.Datapoints?.[response.Datapoints.length - 1];
-  
-  return {
-    invocations: latest?.Sum || 0,
-  };
+  const metrics: Record<string, number> = {};
+
+  const metricNames = [
+    { name: 'Invocations', stats: ['Sum'] },
+    { name: 'Errors', stats: ['Sum'] },
+    { name: 'Duration', stats: ['Average', 'Maximum'] },
+    { name: 'Throttles', stats: ['Sum'] },
+    { name: 'ConcurrentExecutions', stats: ['Maximum'] },
+  ];
+
+  const results = await Promise.allSettled(
+    metricNames.map(async ({ name, stats }) => {
+      const command = new GetMetricStatisticsCommand({
+        Namespace: 'AWS/Lambda',
+        MetricName: name,
+        ...(functionName !== 'all' && {
+          Dimensions: [{ Name: 'FunctionName', Value: functionName }],
+        }),
+        StartTime: start,
+        EndTime: end,
+        Period: 60,
+        Statistics: stats as any[],
+      });
+      const response = await client.send(command);
+      const sorted = (response.Datapoints || []).sort((a, b) => 
+        (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0)
+      );
+      return { name, datapoint: sorted[0] };
+    })
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value.datapoint) {
+      const dp = result.value.datapoint;
+      const name = result.value.name;
+      if (name === 'Invocations') metrics.invocations = dp.Sum || 0;
+      else if (name === 'Errors') metrics.errors = dp.Sum || 0;
+      else if (name === 'Duration') {
+        metrics.avgDuration = dp.Average || 0;
+        metrics.maxDuration = dp.Maximum || 0;
+      }
+      else if (name === 'Throttles') metrics.throttles = dp.Sum || 0;
+      else if (name === 'ConcurrentExecutions') metrics.concurrentExecutions = dp.Maximum || 0;
+    }
+  }
+
+  metrics.errorRate = metrics.invocations > 0 ? Math.round((metrics.errors / metrics.invocations) * 10000) / 100 : 0;
+
+  return metrics;
 }

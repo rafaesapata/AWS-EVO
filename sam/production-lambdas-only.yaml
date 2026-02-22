@@ -3635,6 +3635,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: alerts.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
       Events:
         Api:
           Type: HttpApi
@@ -3660,6 +3662,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: auto-alerts.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 256
       Events:
         Api:
           Type: HttpApi
@@ -3712,6 +3716,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: check-alert-rules.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 256
       Events:
         Api:
           Type: HttpApi
@@ -3737,6 +3743,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: endpoint-monitor-check.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 120
+      MemorySize: 256
       Events:
         Api:
           Type: HttpApi
@@ -3762,6 +3770,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: error-aggregator.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 256
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -3832,6 +3842,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: generate-error-fix-prompt.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
       Events:
         Api:
           Type: HttpApi
@@ -3857,6 +3869,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: get-lambda-health.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
       Events:
         Api:
           Type: HttpApi
@@ -3883,6 +3897,7 @@ Resources:
       Handler: get-platform-metrics.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 60
+      MemorySize: 512
       Events:
         Api:
           Type: HttpApi
@@ -3908,6 +3923,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: get-recent-errors.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
       Events:
         Api:
           Type: HttpApi
@@ -3933,6 +3950,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: health-check.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 15
+      MemorySize: 256
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -3951,6 +3970,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: lambda-health-check.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 120
+      MemorySize: 512
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -3996,6 +4017,8 @@ Resources:
       CodeUri: ../backend/src/handlers/monitoring/
       Handler: monitored-endpoints.handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
       Events:
         Api:
           Type: HttpApi
@@ -4057,6 +4080,31 @@ Resources:
         Sourcemap: false
         EntryPoints:
           - get-communication-logs.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+  ResendCommunicationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-resend-communication'
+      CodeUri: ../backend/src/handlers/notifications/
+      Handler: resend-communication.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/resend-communication
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - resend-communication.ts
         External:
           - '@prisma/client'
           - '.prisma/client'

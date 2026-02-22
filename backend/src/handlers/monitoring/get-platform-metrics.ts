@@ -1,17 +1,20 @@
 /**
- * Get Platform Metrics - 100% Coverage (Optimized)
+ * Get Platform Metrics - Military-Grade Coverage
  * 
  * Agrega métricas de TODAS as Lambdas, Endpoints e Frontend
- * - 114 Lambda functions
+ * - 114+ Lambda functions com cold start tracking
  * - 111 API Gateway endpoints
  * - Frontend errors
- * - Performance metrics
+ * - Performance metrics com percentis
+ * - Trend comparison (current vs previous period)
+ * - Health scoring por categoria
  * 
  * OPTIMIZATIONS:
  * - Batch CloudWatch queries (GetMetricData instead of GetMetricStatistics)
- * - In-memory caching (60s TTL)
+ * - SWR cache (5min fresh, 24h max TTL)
+ * - In-memory caching (60s TTL) com hit/miss tracking
  * - Concurrency control (max 5 parallel requests)
- * - Reduced latency from ~20s to <2s
+ * - Latency: <2s cached, <5s fresh
  */
 
 import type { AuthorizedEvent, LambdaContext, APIGatewayProxyResultV2 } from '../../types/lambda.js';
@@ -108,11 +111,10 @@ export async function handler(
   const startTs = Date.now();
 
   try {
-    // Get user and organization ID using standard auth helpers
     const user = getUserFromEvent(event);
     const organizationId = getOrganizationIdWithImpersonation(event, user);
 
-    logger.info('Fetching platform metrics (optimized)', { 
+    logger.info('Fetching platform metrics (military-grade)', { 
       organizationId,
       cacheStats: metricsCache.getStats(),
     });
@@ -122,60 +124,96 @@ export async function handler(
     const metricsCached = await cacheManager.getSWR<any>(metricsCacheKey, { prefix: 'metrics' });
     if (metricsCached && !metricsCached.stale) {
       logger.info('Platform metrics cache hit (fresh)', { organizationId, cacheAge: metricsCached.age });
-      return success({ ...metricsCached.data, _fromCache: true });
+      return success({ ...metricsCached.data, _fromCache: true, _cacheAge: metricsCached.age });
     }
 
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // Fetch all metrics in parallel using optimized batch fetcher
+    // Fetch current AND previous period metrics in parallel for trend comparison
     const [
       lambdaMetrics,
+      previousLambdaMetrics,
       apiGatewayMetrics,
       frontendErrors,
     ] = await Promise.all([
       fetchLambdaMetricsBatch(ALL_LAMBDAS, oneHourAgo, now),
+      fetchLambdaMetricsBatch(ALL_LAMBDAS, twoHoursAgo, oneHourAgo),
       fetchApiGatewayMetrics(oneHourAgo, now),
       getFrontendErrors(oneHourAgo, now),
     ]);
 
     // Calculate coverage
+    const activeLambdas = lambdaMetrics.filter(m => m.invocations > 0).length;
     const coverage = {
       totalLambdas: ALL_LAMBDAS.length,
       monitoredLambdas: ALL_LAMBDAS.length,
+      activeLambdas,
+      inactiveLambdas: ALL_LAMBDAS.length - activeLambdas,
       totalEndpoints: 111,
       monitoredEndpoints: 111,
       frontendCoverage: 100,
       overallCoverage: 100,
     };
 
-    // Aggregate metrics by category
-    const metrics = aggregateMetricsByCategory(lambdaMetrics);
+    // Aggregate metrics by category with trend
+    const metrics = aggregateMetricsByCategory(lambdaMetrics, previousLambdaMetrics);
 
-    // Get performance metrics for ALL Lambdas (not just top 20)
+    // Performance metrics for ALL Lambdas with health scoring
     const performanceMetrics = lambdaMetrics
-      .map(m => ({
-        name: m.lambdaName.replace('evo-uds-v3-production-', ''),
-        avgDuration: m.avgDuration,
-        p95: m.p95Duration,
-        maxDuration: m.maxDuration || m.p95Duration,
-        invocations: m.invocations,
-        errors: m.errors,
-        errorRate: m.invocations > 0 ? (m.errors / m.invocations) * 100 : 0,
-        category: m.category,
-        status: m.avgDuration === 0 ? 'unknown' : m.avgDuration < 1000 ? 'fast' : m.avgDuration < 5000 ? 'normal' : 'slow',
-      }))
+      .map(m => {
+        const errorRate = m.invocations > 0 ? (m.errors / m.invocations) * 100 : 0;
+        return {
+          name: m.lambdaName.replace('evo-uds-v3-production-', ''),
+          avgDuration: m.avgDuration,
+          p95: m.p95Duration,
+          maxDuration: m.maxDuration || m.p95Duration,
+          invocations: m.invocations,
+          errors: m.errors,
+          errorRate: Math.round(errorRate * 100) / 100,
+          category: m.category,
+          status: m.avgDuration === 0 ? 'inactive' : m.avgDuration < 1000 ? 'fast' : m.avgDuration < 5000 ? 'normal' : 'slow',
+          healthScore: calculateLambdaHealth(errorRate, m.avgDuration, m.p95Duration),
+        };
+      })
       .sort((a, b) => b.invocations - a.invocations);
 
-    // Get Lambda errors for display
+    // Lambda errors for display
     const lambdaErrors = lambdaMetrics
       .filter(m => m.errors > 0)
       .map(m => ({
         lambdaName: m.lambdaName,
         errors: m.errors,
+        errorRate: m.invocations > 0 ? Math.round((m.errors / m.invocations) * 10000) / 100 : 0,
         category: m.category,
-      }));
+      }))
+      .sort((a, b) => b.errors - a.errors);
+
+    // Calculate overall platform health score (0-100)
+    const totalInvocations = lambdaMetrics.reduce((sum, m) => sum + m.invocations, 0);
+    const totalErrors = lambdaMetrics.reduce((sum, m) => sum + m.errors, 0);
+    const overallErrorRate = totalInvocations > 0 ? (totalErrors / totalInvocations) * 100 : 0;
+    const avgDuration = lambdaMetrics.filter(m => m.avgDuration > 0).reduce((sum, m) => sum + m.avgDuration, 0) / Math.max(activeLambdas, 1);
+
+    // Previous period totals for trend
+    const prevTotalInvocations = previousLambdaMetrics.reduce((sum, m) => sum + m.invocations, 0);
+    const prevTotalErrors = previousLambdaMetrics.reduce((sum, m) => sum + m.errors, 0);
+    const prevErrorRate = prevTotalInvocations > 0 ? (prevTotalErrors / prevTotalInvocations) * 100 : 0;
+
+    const platformHealth = {
+      score: calculatePlatformHealthScore(overallErrorRate, avgDuration, apiGatewayMetrics.total5xx),
+      errorRate: Math.round(overallErrorRate * 100) / 100,
+      avgDuration: Math.round(avgDuration),
+      totalInvocations,
+      totalErrors,
+      trend: {
+        invocationsChange: prevTotalInvocations > 0 ? Math.round(((totalInvocations - prevTotalInvocations) / prevTotalInvocations) * 10000) / 100 : 0,
+        errorRateChange: Math.round((overallErrorRate - prevErrorRate) * 100) / 100,
+        direction: overallErrorRate < prevErrorRate ? 'improving' : overallErrorRate > prevErrorRate ? 'degrading' : 'stable',
+      },
+    };
 
     const duration = Date.now() - startTs;
     logger.info('Platform metrics fetched successfully', { 
@@ -183,9 +221,11 @@ export async function handler(
       metricsCount: metrics.length,
       errorsCount: lambdaErrors.length,
       performanceCount: performanceMetrics.length,
+      healthScore: platformHealth.score,
     });
 
     const responseData = {
+      platformHealth,
       coverage,
       metrics,
       lambdaErrors,
@@ -200,6 +240,8 @@ export async function handler(
       _meta: {
         fetchDuration: duration,
         cacheStats: metricsCache.getStats(),
+        lambdaCount: ALL_LAMBDAS.length,
+        activeLambdas,
       },
     };
 
@@ -212,6 +254,62 @@ export async function handler(
     logger.error('Error fetching platform metrics', err as Error);
     return error('Failed to fetch platform metrics');
   }
+}
+
+/**
+ * Calculate individual Lambda health score (0-100)
+ */
+function calculateLambdaHealth(errorRate: number, avgDuration: number, p95Duration: number): number {
+  let score = 100;
+  
+  // Error rate penalty (heaviest weight)
+  if (errorRate > 10) score -= 50;
+  else if (errorRate > 5) score -= 30;
+  else if (errorRate > 1) score -= 15;
+  else if (errorRate > 0) score -= 5;
+
+  // Duration penalty
+  if (avgDuration > 10000) score -= 25;
+  else if (avgDuration > 5000) score -= 15;
+  else if (avgDuration > 3000) score -= 10;
+  else if (avgDuration > 1000) score -= 5;
+
+  // P95 spike penalty
+  if (p95Duration > 0 && avgDuration > 0) {
+    const spikeRatio = p95Duration / avgDuration;
+    if (spikeRatio > 5) score -= 10;
+    else if (spikeRatio > 3) score -= 5;
+  }
+
+  return Math.max(0, Math.min(100, score));
+}
+
+/**
+ * Calculate overall platform health score (0-100)
+ */
+function calculatePlatformHealthScore(errorRate: number, avgDuration: number, api5xx: number): number {
+  let score = 100;
+
+  // Error rate (40% weight)
+  if (errorRate > 5) score -= 40;
+  else if (errorRate > 2) score -= 25;
+  else if (errorRate > 1) score -= 15;
+  else if (errorRate > 0.5) score -= 8;
+  else if (errorRate > 0) score -= 3;
+
+  // Avg duration (30% weight)
+  if (avgDuration > 10000) score -= 30;
+  else if (avgDuration > 5000) score -= 20;
+  else if (avgDuration > 3000) score -= 10;
+  else if (avgDuration > 1000) score -= 5;
+
+  // API Gateway 5xx (30% weight)
+  if (api5xx > 100) score -= 30;
+  else if (api5xx > 50) score -= 20;
+  else if (api5xx > 10) score -= 10;
+  else if (api5xx > 0) score -= 5;
+
+  return Math.max(0, Math.min(100, score));
 }
 
 async function getFrontendErrors(startTime: Date, endTime: Date) {
@@ -246,9 +344,11 @@ async function getFrontendErrors(startTime: Date, endTime: Date) {
   }
 }
 
-function aggregateMetricsByCategory(lambdaMetrics: any[]) {
+function aggregateMetricsByCategory(lambdaMetrics: any[], previousMetrics?: any[]) {
   const categories = new Map<string, any>();
+  const prevCategories = new Map<string, any>();
 
+  // Current period
   for (const metric of lambdaMetrics) {
     const cat = metric.category;
     if (!categories.has(cat)) {
@@ -258,22 +358,76 @@ function aggregateMetricsByCategory(lambdaMetrics: any[]) {
         invocations: 0, 
         errorRate: 0,
         lambdaCount: 0,
+        activeLambdas: 0,
+        avgDuration: 0,
+        totalDuration: 0,
       });
     }
     const catData = categories.get(cat)!;
     catData.errors += metric.errors;
     catData.invocations += metric.invocations;
     catData.lambdaCount++;
+    if (metric.invocations > 0) {
+      catData.activeLambdas++;
+      catData.totalDuration += metric.avgDuration;
+    }
   }
 
-  // Calculate error rates and status
-  const result = Array.from(categories.values()).map(cat => ({
-    ...cat,
-    errorRate: cat.invocations > 0 ? (cat.errors / cat.invocations) * 100 : 0,
-    status: cat.errors === 0 ? 'ok' : cat.errors < 5 ? 'warning' : 'critical',
-    trend: 'stable',
-    change: 0,
-  }));
+  // Previous period for trend
+  if (previousMetrics) {
+    for (const metric of previousMetrics) {
+      const cat = metric.category;
+      if (!prevCategories.has(cat)) {
+        prevCategories.set(cat, { errors: 0, invocations: 0 });
+      }
+      const prev = prevCategories.get(cat)!;
+      prev.errors += metric.errors;
+      prev.invocations += metric.invocations;
+    }
+  }
 
-  return result;
+  const result = Array.from(categories.values()).map(cat => {
+    const errorRate = cat.invocations > 0 ? (cat.errors / cat.invocations) * 100 : 0;
+    const avgDuration = cat.activeLambdas > 0 ? cat.totalDuration / cat.activeLambdas : 0;
+    const prev = prevCategories.get(cat.name);
+    const prevErrorRate = prev && prev.invocations > 0 ? (prev.errors / prev.invocations) * 100 : 0;
+    const invocationChange = prev && prev.invocations > 0
+      ? ((cat.invocations - prev.invocations) / prev.invocations) * 100
+      : 0;
+
+    return {
+      name: cat.name,
+      errors: cat.errors,
+      invocations: cat.invocations,
+      errorRate: Math.round(errorRate * 100) / 100,
+      lambdaCount: cat.lambdaCount,
+      activeLambdas: cat.activeLambdas,
+      avgDuration: Math.round(avgDuration),
+      status: cat.errors === 0 ? 'ok' : errorRate > 5 ? 'critical' : errorRate > 1 ? 'warning' : 'ok',
+      healthScore: calculateCategoryHealth(errorRate, avgDuration),
+      trend: {
+        direction: errorRate < prevErrorRate ? 'improving' : errorRate > prevErrorRate ? 'degrading' : 'stable',
+        errorRateChange: Math.round((errorRate - prevErrorRate) * 100) / 100,
+        invocationChange: Math.round(invocationChange * 100) / 100,
+      },
+    };
+  });
+
+  return result.sort((a, b) => a.healthScore - b.healthScore); // worst first
+}
+
+/**
+ * Calculate category health score (0-100)
+ */
+function calculateCategoryHealth(errorRate: number, avgDuration: number): number {
+  let score = 100;
+  if (errorRate > 10) score -= 50;
+  else if (errorRate > 5) score -= 30;
+  else if (errorRate > 1) score -= 15;
+  else if (errorRate > 0) score -= 5;
+
+  if (avgDuration > 10000) score -= 25;
+  else if (avgDuration > 5000) score -= 15;
+  else if (avgDuration > 2000) score -= 8;
+  return Math.max(0, Math.min(100, score));
 }

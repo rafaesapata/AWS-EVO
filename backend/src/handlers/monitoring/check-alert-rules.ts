@@ -62,9 +62,28 @@ export const handler = safeHandler(async (
     
     const triggeredAlerts: any[] = [];
     
-    // Verificar cada regra
+    // Verificar cada regra com cooldown
     for (const rule of alertRules) {
       try {
+        // Cooldown check: skip if alert was triggered recently (default 15min)
+        const cooldownMinutes = rule.cooldown_minutes ?? 15;
+        const cooldownTime = new Date();
+        cooldownTime.setMinutes(cooldownTime.getMinutes() - cooldownMinutes);
+        
+        const recentAlert = await prisma.alert.findFirst({
+          where: {
+            organization_id: organizationId,
+            rule_id: rule.id,
+            triggered_at: { gte: cooldownTime },
+          },
+          select: { id: true },
+        });
+        
+        if (recentAlert && !dryRun) {
+          logger.info('Skipping rule (cooldown active)', { ruleId: rule.id, ruleName: rule.name });
+          continue;
+        }
+        
         const triggered = await checkRule(prisma, rule);
         
         if (triggered) {
@@ -140,6 +159,9 @@ async function checkRule(prisma: any, rule: any): Promise<{ metadata: any } | nu
     
     case 'compliance_violation':
       return await checkComplianceViolation(prisma, rule);
+    
+    case 'endpoint_health':
+      return await checkEndpointHealth(prisma, rule);
     
     default:
       logger.warn('Unknown rule type', { ruleType });
@@ -251,6 +273,47 @@ async function checkComplianceViolation(prisma: any, rule: any): Promise<{ metad
         violationsCount: violations,
         framework: condition.framework,
         threshold: condition.count,
+      },
+    };
+  }
+  
+  return null;
+}
+
+async function checkEndpointHealth(prisma: any, rule: any): Promise<{ metadata: any } | null> {
+  const { organization_id: organizationId, condition } = rule;
+  
+  const downEndpoints = await prisma.monitoredEndpoint.count({
+    where: {
+      organization_id: organizationId,
+      is_active: true,
+      last_status: 'down',
+    },
+  });
+  
+  const threshold = condition?.count ?? 1;
+  
+  if (downEndpoints >= threshold) {
+    // Get details of down endpoints
+    const endpoints = await prisma.monitoredEndpoint.findMany({
+      where: {
+        organization_id: organizationId,
+        is_active: true,
+        last_status: 'down',
+      },
+      select: { id: true, name: true, url: true, last_checked_at: true },
+      take: 5,
+    });
+    
+    return {
+      metadata: {
+        downEndpoints,
+        threshold,
+        endpoints: endpoints.map((e: any) => ({
+          name: e.name,
+          url: e.url,
+          lastChecked: e.last_checked_at,
+        })),
       },
     };
   }

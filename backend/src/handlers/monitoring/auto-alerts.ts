@@ -39,68 +39,93 @@ export async function handler(
     
     const createdAlerts: any[] = [];
     
-    // 1. Verificar anomalias de custo
-    const costAnomalies = await detectCostAnomalies(prisma, organizationId, accountId);
-    for (const anomaly of costAnomalies) {
+    // Cooldown: buscar alertas recentes para evitar duplicatas (últimos 30min)
+    const cooldownWindow = new Date();
+    cooldownWindow.setMinutes(cooldownWindow.getMinutes() - 30);
+    
+    const recentAlerts = await prisma.alert.findMany({
+      where: {
+        organization_id: organizationId,
+        triggered_at: { gte: cooldownWindow },
+      },
+      select: { title: true, severity: true },
+    });
+    const recentAlertTitles = new Set(recentAlerts.map((a: any) => a.title));
+    
+    // Helper: criar alerta com cooldown check
+    const createAlertIfNew = async (data: { severity: string; title: string; message: string; metadata: any }) => {
+      if (recentAlertTitles.has(data.title)) {
+        logger.info(`Skipping duplicate alert (cooldown): ${data.title}`);
+        return null;
+      }
       const alert = await prisma.alert.create({
         data: {
           organization_id: organizationId,
-          severity: anomaly.severity,
-          title: 'Cost Anomaly Detected',
-          message: anomaly.message,
-          metadata: anomaly.metadata,
+          severity: data.severity,
+          title: data.title,
+          message: data.message,
+          metadata: data.metadata,
           triggered_at: new Date(),
         },
       });
+      recentAlertTitles.add(data.title);
       createdAlerts.push(alert);
+      return alert;
+    };
+    
+    // 1. Verificar anomalias de custo
+    const costAnomalies = await detectCostAnomalies(prisma, organizationId, accountId);
+    for (const anomaly of costAnomalies) {
+      await createAlertIfNew({
+        severity: anomaly.severity,
+        title: 'Cost Anomaly Detected',
+        message: anomaly.message,
+        metadata: anomaly.metadata,
+      });
     }
     
     // 2. Verificar novos findings críticos
     const criticalFindings = await detectCriticalFindings(prisma, organizationId, accountId);
     for (const finding of criticalFindings) {
-      const alert = await prisma.alert.create({
-        data: {
-          organization_id: organizationId,
-          severity: 'CRITICAL',
-          title: 'Critical Security Finding',
-          message: finding.message,
-          metadata: finding.metadata,
-          triggered_at: new Date(),
-        },
+      await createAlertIfNew({
+        severity: 'CRITICAL',
+        title: `Critical Security Finding: ${finding.metadata?.title || 'Unknown'}`,
+        message: finding.message,
+        metadata: finding.metadata,
       });
-      createdAlerts.push(alert);
     }
     
     // 3. Verificar drifts críticos
     const criticalDrifts = await detectCriticalDrifts(prisma, organizationId, accountId);
     for (const drift of criticalDrifts) {
-      const alert = await prisma.alert.create({
-        data: {
-          organization_id: organizationId,
-          severity: 'HIGH',
-          title: 'Critical Drift Detected',
-          message: drift.message,
-          metadata: drift.metadata,
-          triggered_at: new Date(),
-        },
+      await createAlertIfNew({
+        severity: 'HIGH',
+        title: `Critical Drift: ${drift.metadata?.driftType || 'Unknown'}`,
+        message: drift.message,
+        metadata: drift.metadata,
       });
-      createdAlerts.push(alert);
     }
     
     // 4. Verificar violações de compliance
     const complianceViolations = await detectComplianceViolations(prisma, organizationId, accountId);
     for (const violation of complianceViolations) {
-      const alert = await prisma.alert.create({
-        data: {
-          organization_id: organizationId,
-          severity: 'HIGH',
-          title: 'Compliance Violation',
-          message: violation.message,
-          metadata: violation.metadata,
-          triggered_at: new Date(),
-        },
+      await createAlertIfNew({
+        severity: 'HIGH',
+        title: `Compliance Violation: ${violation.metadata?.controlId || 'Unknown'}`,
+        message: violation.message,
+        metadata: violation.metadata,
       });
-      createdAlerts.push(alert);
+    }
+    
+    // 5. Verificar endpoints down
+    const endpointAlerts = await detectEndpointAnomalies(prisma, organizationId);
+    for (const epAlert of endpointAlerts) {
+      await createAlertIfNew({
+        severity: epAlert.severity,
+        title: epAlert.title,
+        message: epAlert.message,
+        metadata: epAlert.metadata,
+      });
     }
     
     logger.info(`✅ Created ${createdAlerts.length} auto alerts`);
@@ -289,4 +314,92 @@ async function detectComplianceViolations(
   }
   
   return violations;
+}
+
+async function detectEndpointAnomalies(
+  prisma: any,
+  organizationId: string
+): Promise<any[]> {
+  const alerts: any[] = [];
+  
+  // Buscar endpoints que estão down
+  const downEndpoints = await prisma.monitoredEndpoint.findMany({
+    where: {
+      organization_id: organizationId,
+      is_active: true,
+      last_status: 'down',
+    },
+    take: 20,
+  });
+  
+  for (const endpoint of downEndpoints) {
+    alerts.push({
+      severity: 'CRITICAL',
+      title: `Endpoint Down: ${endpoint.name}`,
+      message: `Monitored endpoint ${endpoint.url} is not responding. Last checked: ${endpoint.last_checked_at?.toISOString() || 'never'}`,
+      metadata: {
+        endpointId: endpoint.id,
+        url: endpoint.url,
+        lastStatus: endpoint.last_status,
+        lastResponseTime: endpoint.last_response_time,
+      },
+    });
+  }
+  
+  // Buscar endpoints com SSL expirando em 7 dias
+  const sslExpiryThreshold = new Date();
+  sslExpiryThreshold.setDate(sslExpiryThreshold.getDate() + 7);
+  
+  const expiringSSL = await prisma.monitoredEndpoint.findMany({
+    where: {
+      organization_id: organizationId,
+      is_active: true,
+      monitor_ssl: true,
+      ssl_expiry_date: {
+        lte: sslExpiryThreshold,
+        gte: new Date(),
+      },
+    },
+    take: 10,
+  });
+  
+  for (const endpoint of expiringSSL) {
+    const daysLeft = Math.ceil((endpoint.ssl_expiry_date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    alerts.push({
+      severity: daysLeft <= 3 ? 'CRITICAL' : 'HIGH',
+      title: `SSL Expiring: ${endpoint.name}`,
+      message: `SSL certificate for ${endpoint.url} expires in ${daysLeft} days`,
+      metadata: {
+        endpointId: endpoint.id,
+        url: endpoint.url,
+        sslExpiryDate: endpoint.ssl_expiry_date,
+        daysUntilExpiry: daysLeft,
+      },
+    });
+  }
+  
+  // Buscar endpoints com alta latência (degraded)
+  const degradedEndpoints = await prisma.monitoredEndpoint.findMany({
+    where: {
+      organization_id: organizationId,
+      is_active: true,
+      last_status: 'degraded',
+    },
+    take: 10,
+  });
+  
+  for (const endpoint of degradedEndpoints) {
+    alerts.push({
+      severity: 'MEDIUM',
+      title: `Endpoint Degraded: ${endpoint.name}`,
+      message: `Endpoint ${endpoint.url} is responding slowly (${endpoint.last_response_time}ms)`,
+      metadata: {
+        endpointId: endpoint.id,
+        url: endpoint.url,
+        responseTime: endpoint.last_response_time,
+      },
+    });
+  }
+  
+  return alerts;
 }

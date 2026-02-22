@@ -5,7 +5,7 @@
 
 import { CloudWatchClient, PutMetricDataCommand, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
-import { logger } from './logging';
+import { logger } from './logger.js';
 
 export interface MetricData {
   name: string;

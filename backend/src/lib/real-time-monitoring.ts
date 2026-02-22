@@ -4,8 +4,8 @@
  */
 
 import { logger } from './logger.js';
-import { metricsCollector } from './metrics-collector';
-import { getPrismaClient } from './database';
+import { metricsCollector } from './metrics-collector.js';
+import { getPrismaClient } from './database.js';
 import { EventEmitter } from 'events';
 
 export interface MonitoringMetric {
