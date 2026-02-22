@@ -81,7 +81,9 @@ export type AuditAction =
   | 'TAG_AUTO_RULES_EXECUTED'
   | 'OVERHEAD_CREATED'
   | 'OVERHEAD_UPDATED'
-  | 'COMMUNICATION_RESEND';
+  | 'COMMUNICATION_RESEND'
+  | 'TV_TOKEN_CREATE'
+  | 'TV_TOKEN_DELETE';
 
 export type AuditResourceType =
   | 'user'
@@ -117,7 +119,8 @@ export type AuditResourceType =
   | 'tag_policy'
   | 'tag_auto_rule'
   | 'organization_overhead'
-  | 'communication';
+  | 'communication'
+  | 'tv_token';
 
 export interface AuditLogParams {
   organizationId: string;

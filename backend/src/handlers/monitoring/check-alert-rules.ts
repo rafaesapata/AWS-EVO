@@ -66,7 +66,8 @@ export const handler = safeHandler(async (
     for (const rule of alertRules) {
       try {
         // Cooldown check: skip if alert was triggered recently (default 15min)
-        const cooldownMinutes = rule.cooldown_minutes ?? 15;
+        const ruleCondition = rule.condition as Record<string, any> | null;
+        const cooldownMinutes = ruleCondition?.cooldownMinutes ?? 15;
         const cooldownTime = new Date();
         cooldownTime.setMinutes(cooldownTime.getMinutes() - cooldownMinutes);
         
@@ -145,7 +146,7 @@ export const handler = safeHandler(async (
 });
 
 async function checkRule(prisma: any, rule: any): Promise<{ metadata: any } | null> {
-  const { ruleType, condition, threshold } = rule;
+  const ruleType = rule.rule_type || rule.condition_type;
   
   switch (ruleType) {
     case 'cost_threshold':

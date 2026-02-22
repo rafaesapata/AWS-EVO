@@ -28,76 +28,148 @@ import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cl
 
 const cloudwatchLogs = new CloudWatchLogsClient({ region: 'us-east-1' });
 
-// All 114 Lambda functions
+// All 219 Lambda functions (auto-synced with SAM template)
 const ALL_LAMBDAS = [
-  // Auth & MFA (11)
+  // Admin (18)
+  'admin-azure-credentials', 'admin-evo-app-credentials', 'admin-manage-user', 'admin-sync-license',
+  'automated-cleanup-stuck-scans', 'auto-cleanup-stuck-scans', 'cleanup-stuck-scans', 'cleanup-stuck-scans-jobs',
+  'cleanup-stuck-scans-simple', 'create-cognito-user', 'create-user', 'deactivate-demo-mode',
+  'debug-cloudtrail', 'direct-cleanup', 'disable-cognito-user', 'log-audit', 'manage-demo-mode',
+  'manage-email-templates',
+
+  // Admin continued (8)
+  'manage-organizations', 'run-migration', 'run-sql', 'setup-license-config',
+  'run-migrations', 'run-sql-migration', 'check-migrations', 'maintenance-auto-cleanup-stuck-scans',
+
+  // AI & ML (10)
+  'bedrock-chat', 'check-proactive-notifications', 'generate-response', 'get-ai-notifications',
+  'list-ai-notifications-admin', 'manage-notification-rules', 'send-ai-notification', 'update-ai-notification',
+  'ai-budget-suggestion', 'ai-prioritization',
+
+  // Auth & MFA (14)
+  'delete-webauthn-credential', 'forgot-password', 'change-password',
   'mfa-enroll', 'mfa-check', 'mfa-challenge-verify', 'mfa-verify-login', 'mfa-list-factors', 'mfa-unenroll',
-  'webauthn-register', 'webauthn-authenticate', 'webauthn-check', 'delete-webauthn-credential', 'verify-tv-token',
-  
-  // Admin (5)
-  'admin-manage-user', 'create-cognito-user', 'disable-cognito-user', 'manage-organizations', 'log-audit',
-  
-  // Security (17)
-  'security-scan', 'start-security-scan', 'compliance-scan', 'start-compliance-scan', 'get-compliance-scan-status',
-  'get-compliance-history', 'well-architected-scan', 'guardduty-scan', 'get-findings', 'get-security-posture',
-  'validate-aws-credentials', 'validate-permissions', 'iam-deep-analysis', 'lateral-movement-detection',
-  'drift-detection', 'analyze-cloudtrail', 'start-cloudtrail-analysis', 'fetch-cloudtrail',
-  
-  // WAF (2)
-  'waf-setup-monitoring', 'waf-dashboard-api',
-  
-  // Cost & FinOps (7)
-  'fetch-daily-costs', 'ri-sp-analyzer', 'cost-optimization', 'budget-forecast', 'generate-cost-forecast',
-  'finops-copilot', 'ml-waste-detection',
-  
-  // AI & ML (5)
-  'bedrock-chat', 'intelligent-alerts-analyzer', 'predict-incidents', 'detect-anomalies', 'anomaly-detection',
-  
-  // Dashboard & Monitoring (10)
-  'get-executive-dashboard', 'get-executive-dashboard-public', 'manage-tv-tokens', 'alerts', 'auto-alerts',
-  'check-alert-rules', 'aws-realtime-metrics', 'fetch-cloudwatch-metrics', 'fetch-edge-services', 'endpoint-monitor-check',
-  
+  'self-register', 'verify-tv-token',
+  'webauthn-authenticate', 'webauthn-check', 'webauthn-register',
+
   // AWS Credentials (3)
   'list-aws-credentials', 'save-aws-credentials', 'update-aws-credentials',
-  
-  // Azure Multi-Cloud (20)
-  'azure-oauth-initiate', 'azure-oauth-callback', 'azure-oauth-refresh', 'azure-oauth-revoke',
-  'validate-azure-credentials', 'save-azure-credentials', 'list-azure-credentials', 'delete-azure-credentials',
-  'azure-security-scan', 'start-azure-security-scan', 'azure-defender-scan', 'azure-compliance-scan',
-  'azure-well-architected-scan', 'azure-cost-optimization', 'azure-reservations-analyzer', 'azure-fetch-costs',
-  'azure-resource-inventory', 'azure-activity-logs', 'azure-fetch-monitor-metrics', 'azure-detect-anomalies',
-  'list-cloud-credentials',
-  
-  // License (6)
-  'validate-license', 'configure-license', 'sync-license', 'admin-sync-license', 'manage-seats', 'daily-license-validation',
-  
+
+  // Azure Multi-Cloud (22)
+  'azure-activity-logs', 'azure-compliance-scan', 'azure-cost-optimization', 'azure-defender-scan',
+  'azure-detect-anomalies', 'azure-fetch-costs', 'azure-fetch-edge-services', 'azure-fetch-monitor-metrics',
+  'azure-ml-waste-detection', 'azure-oauth-callback', 'azure-oauth-initiate', 'azure-oauth-refresh',
+  'azure-oauth-revoke', 'azure-reservations-analyzer', 'azure-resource-inventory', 'azure-security-scan',
+  'azure-well-architected-scan', 'delete-azure-credentials', 'list-azure-credentials',
+  'save-azure-credentials', 'validate-azure-credentials', 'validate-azure-permissions',
+
+  // Cloud (2)
+  'list-cloud-credentials', 'sync-resource-inventory',
+
+  // Cost & FinOps (14)
+  'budget-forecast', 'cleanup-cost-data', 'cost-optimization', 'fetch-daily-costs',
+  'finops-copilot', 'generate-cost-forecast', 'manage-cloud-budget', 'manage-cost-overhead',
+  'ml-waste-detection', 'ri-sp-analyzer', 'analyze-ri-sp', 'get-ri-sp-analysis',
+  'get-ri-sp-data', 'list-ri-sp-history',
+
+  // Dashboard & Monitoring (20)
+  'get-executive-dashboard', 'get-executive-dashboard-public', 'manage-tv-tokens',
+  'alerts', 'auto-alerts', 'check-alert-rules', 'aws-realtime-metrics',
+  'fetch-cloudwatch-metrics', 'fetch-edge-services', 'endpoint-monitor-check',
+  'error-aggregator', 'generate-error-fix-prompt', 'get-lambda-health',
+  'get-platform-metrics', 'get-recent-errors', 'health-check', 'lambda-health-check',
+  'log-frontend-error', 'monitored-endpoints', 'test-lambda-metrics',
+
+  // Data (3)
+  'query-table', 'mutate-table', 'list-tables',
+
+  // Integrations (5)
+  'create-jira-ticket', 'create-remediation-ticket', 'ticket-attachments', 'ticket-management',
+  'cloudformation-webhook',
+
+  // Jobs & System (9)
+  'process-background-jobs', 'list-background-jobs', 'execute-scheduled-job', 'scheduled-scan-executor',
+  'cancel-background-job', 'retry-background-job', 'process-events', 'initial-data-load',
+  'scheduled-view-refresh',
+
   // Knowledge Base (6)
-  'kb-analytics-dashboard', 'kb-ai-suggestions', 'kb-export-pdf', 'increment-article-views',
-  'increment-article-helpful', 'track-article-view-detailed',
-  
-  // Reports (5)
-  'generate-pdf-report', 'generate-excel-report', 'generate-security-pdf', 'security-scan-pdf-export', 'generate-remediation-script',
-  
-  // Data (2)
-  'query-table', 'mutate-table',
-  
+  'kb-analytics-dashboard', 'kb-ai-suggestions', 'kb-export-pdf',
+  'increment-article-views', 'increment-article-helpful', 'track-article-view-detailed',
+
+  // KB continued (1)
+  'kb-article-tracking',
+
+  // License (8)
+  'validate-license', 'configure-license', 'sync-license', 'admin-sync-license',
+  'manage-seats', 'daily-license-validation', 'manage-seat-assignments',
+  'scheduled-license-sync',
+
+  // Notifications (8)
+  'send-email', 'send-notification', 'get-communication-logs', 'notification-settings',
+  'manage-email-preferences', 'send-scheduled-emails', 'resend-communication', 'email-delivery-status',
+
   // Organizations (5)
-  'create-organization-account', 'sync-organization-accounts', 'check-organization', 'create-with-organization', 'get-user-organization',
-  
-  // Notifications (3)
-  'send-email', 'send-notification', 'get-communication-logs',
-  
+  'create-organization-account', 'sync-organization-accounts', 'check-organization',
+  'create-with-organization', 'get-user-organization',
+
+  // Profiles (0 - handled via auth)
+
+  // Reports (5)
+  'generate-pdf-report', 'generate-excel-report', 'generate-security-pdf',
+  'security-scan-pdf-export', 'generate-remediation-script',
+
+  // Reports continued (2)
+  'scan-report-generator', 'generate-ai-insights',
+
+  // Security (18)
+  'security-scan', 'start-security-scan', 'compliance-scan', 'start-compliance-scan',
+  'get-compliance-scan-status', 'get-compliance-history', 'well-architected-scan',
+  'guardduty-scan', 'get-findings', 'get-security-posture',
+  'validate-aws-credentials', 'validate-permissions', 'iam-deep-analysis',
+  'lateral-movement-detection', 'drift-detection', 'analyze-cloudtrail',
+  'start-cloudtrail-analysis', 'fetch-cloudtrail',
+
+  // Security continued (3)
+  'start-analyze-cloudtrail', 'start-azure-security-scan', 'iam-behavior-analysis',
+
+  // ML (3)
+  'intelligent-alerts-analyzer', 'predict-incidents', 'detect-anomalies',
+
   // Storage (3)
   'storage-download', 'storage-delete', 'upload-attachment',
-  
-  // Jobs & System (4)
-  'process-background-jobs', 'list-background-jobs', 'execute-scheduled-job', 'scheduled-scan-executor',
-  
-  // Integrations (1)
-  'create-jira-ticket',
-  
-  // Monitoring (NEW - 4)
-  'generate-error-fix-prompt', 'log-frontend-error', 'get-platform-metrics', 'get-recent-errors',
+
+  // SES (1)
+  'ses-webhook',
+
+  // SLA (1)
+  'check-sla-escalations',
+
+  // Tags (12)
+  'tag-crud', 'tag-assign', 'tag-bulk-assign', 'tag-cost-report', 'tag-cost-services',
+  'tag-coverage', 'tag-inventory-report', 'tag-resources', 'tag-security-findings',
+  'tag-suggestions', 'tag-templates', 'tag-untagged-resources',
+
+  // WAF (6)
+  'waf-setup-monitoring', 'waf-dashboard-api', 'validate-waf-security',
+  'waf-log-forwarder', 'waf-log-processor', 'waf-threat-analyzer',
+
+  // WAF continued (1)
+  'waf-unblock-expired',
+
+  // WebSocket (2)
+  'websocket-connect', 'websocket-disconnect',
+
+  // Cleanup (3)
+  'cleanup-expired-external-ids', 'cleanup-expired-oauth-states', 'cleanup-seats',
+
+  // License retry (2)
+  'retry-fallback-licenses', 'save-ri-sp-analysis',
+
+  // DB (1)
+  'db-init',
+
+  // Anomaly (1)
+  'diagnose-cost-dashboard',
 ];
 
 export async function handler(
@@ -152,8 +224,8 @@ export async function handler(
       monitoredLambdas: ALL_LAMBDAS.length,
       activeLambdas,
       inactiveLambdas: ALL_LAMBDAS.length - activeLambdas,
-      totalEndpoints: 111,
-      monitoredEndpoints: 111,
+      totalEndpoints: 219,
+      monitoredEndpoints: 219,
       frontendCoverage: 100,
       overallCoverage: 100,
     };
