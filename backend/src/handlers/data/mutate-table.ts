@@ -277,6 +277,11 @@ export async function handler(
             dataWithOrg.created_by = userId;
           }
           
+          // Special handling for tv_dashboards - add user_id
+          if (body.table === 'tv_dashboards' && !dataWithOrg.user_id) {
+            dataWithOrg.user_id = userId;
+          }
+          
           result = await model.create({
             data: dataWithOrg,
           });
