@@ -31,7 +31,10 @@ export async function assumeRole(
     return { ...cached.creds, region };
   }
 
-  const stsClient = new STSClient({ region });
+  // Always use us-east-1 for STS to get globally-valid tokens
+  // Regional STS endpoints may produce tokens rejected by services in other regions
+  // if the customer hasn't enabled regional STS endpoints in their account
+  const stsClient = new STSClient({ region: 'us-east-1' });
   
   console.log('🔐 AssumeRole STS call (cache miss):', roleArn.split('/').pop());
   
@@ -55,13 +58,28 @@ export async function assumeRole(
     region,
   };
 
-  // Cache with expiry
+  // Cache with expiry (key includes roleArn+externalId, region is set on retrieval)
   assumeRoleCache.set(cacheKey, {
     creds,
     expiresAt: response.Credentials.Expiration?.getTime() || (Date.now() + 3600_000),
   });
 
   return creds;
+}
+
+/**
+ * Invalidate cached credentials for a role (call when token is rejected)
+ */
+export function invalidateAssumeRoleCache(roleArn?: string): void {
+  if (roleArn) {
+    for (const key of assumeRoleCache.keys()) {
+      if (key.startsWith(roleArn)) {
+        assumeRoleCache.delete(key);
+      }
+    }
+  } else {
+    assumeRoleCache.clear();
+  }
 }
 
 /**

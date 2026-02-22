@@ -114,29 +114,38 @@ A flag `--tunnel` carrega `backend/.env.tunnel` que aponta DATABASE_URL para `lo
 # Terminal 1: tunnel SSH (se precisar de DB)
 ./backend/scripts/db-tunnel.sh
 
-# Terminal 2: servidor backend local (porta 3001)
+# Terminal 2: servidor backend local (porta 4201)
 npm run serve --prefix backend -- --tunnel
 
-# Terminal 3: frontend Vite (porta 8080, proxy automático para :3001)
+# Terminal 3: frontend Vite (porta 4200, proxy automático para :4201)
 npm run dev
 ```
 
-O Vite já tem proxy configurado: `/api/*` → `http://localhost:3001`. O frontend funciona normalmente — login via Cognito, JWT real decodificado pelo servidor local.
+O Vite já tem proxy configurado: `/api/*` → `http://localhost:4201`. O frontend funciona normalmente — login via Cognito, JWT real decodificado pelo servidor local.
+
+### Portas locais
+
+| Serviço | Porta | URL |
+|---------|-------|-----|
+| Frontend (Vite) | 4200 | http://localhost:4200 |
+| Backend (Express) | 4201 | http://localhost:4201 |
+
+Portas escolhidas para evitar conflito com serviços comuns (3000, 3001, 5173, 8080).
 
 ### Options do servidor
 
 | Flag | Descrição |
 |------|-----------|
 | `--tunnel, -t` | Usar .env.tunnel (DB via SSH) |
-| `--port, -p` | Porta (default: 3001) |
+| `--port, -p` | Porta (default: 4201) |
 | `--no-auth` | Desabilitar JWT, usar claims fake |
 | `--user` | JSON com claims customizados |
 | `--verbose, -v` | Log detalhado por request |
 
 ### Endpoints úteis
 
-- `GET http://localhost:3001/health` — status do servidor
-- `GET http://localhost:3001/routes` — lista todas as 167 rotas mapeadas
+- `GET http://localhost:4201/health` — status do servidor
+- `GET http://localhost:4201/routes` — lista todas as 167 rotas mapeadas
 
 ### Como funciona
 

@@ -11,6 +11,15 @@ import { logger } from '../../lib/logger.js';
 import { getHttpMethod, getHttpPath } from '../../lib/middleware.js';
 import { ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { z } from 'zod';
+import {
+  isValidTransition,
+  getAllowedTransitions,
+  findAssignment,
+  getWatcherRecipients,
+  autoWatch,
+  validateTicketOwnership,
+} from '../../lib/ticket-workflow.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 // ==================== SCHEMAS ====================
 

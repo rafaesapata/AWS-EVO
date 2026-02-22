@@ -3,10 +3,50 @@
  * Manages database connections and provides Prisma client instance
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { logger } from './logger.js';
 
 let prisma: PrismaClient | null = null;
+
+// Connection error codes that warrant a retry
+const RETRYABLE_ERROR_CODES = new Set([
+  'P1001', // Can't reach database server
+  'P1002', // Database server timed out
+  'P1008', // Operations timed out
+  'P1017', // Server has closed the connection
+  'P2024', // Timed out fetching a new connection from the pool
+]);
+
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 200;
+
+/**
+ * Check if a Prisma error is retryable (transient connection issue)
+ */
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return RETRYABLE_ERROR_CODES.has(error.code);
+  }
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    return true;
+  }
+  // Catch raw connection errors (ECONNREFUSED, ECONNRESET, ETIMEDOUT)
+  if (error instanceof Error) {
+    return /ECONNREFUSED|ECONNRESET|ETIMEDOUT|connection.*closed|connection.*terminated|connection.*reset/i.test(error.message);
+  }
+  return false;
+}
+
+/**
+ * Reset the Prisma client singleton (forces reconnect on next call)
+ */
+function resetPrismaClient(): void {
+  if (prisma) {
+    prisma.$disconnect().catch(() => {});
+    prisma = null;
+    logger.warn('Prisma client reset due to connection error — will reconnect on next query');
+  }
+}
 
 /**
  * Get Prisma client instance (singleton)
@@ -40,32 +80,58 @@ export function getPrismaClient(): PrismaClient {
         },
       });
 
-      // MILITARY GRADE: Add middleware for query timing and audit logging
+      // MILITARY GRADE: Add middleware for query timing, audit logging, and auto-retry
       prisma.$use(async (params, next) => {
         const startTime = Date.now();
-        const result = await next(params);
-        const duration = Date.now() - startTime;
-        
-        // Log slow queries (> 1000ms) in production
-        if (isProduction && duration > 1000) {
-          logger.warn('Slow database query detected', {
-            model: params.model,
-            action: params.action,
-            duration,
-            threshold: 1000
-          });
+        let lastError: unknown;
+
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            const result = await next(params);
+            const duration = Date.now() - startTime;
+
+            // Log slow queries (> 1000ms) in production
+            if (isProduction && duration > 1000) {
+              logger.warn('Slow database query detected', {
+                model: params.model,
+                action: params.action,
+                duration,
+                threshold: 1000
+              });
+            }
+
+            // Log all write operations for audit trail in production
+            if (isProduction && ['create', 'update', 'delete', 'createMany', 'updateMany', 'deleteMany'].includes(params.action || '')) {
+              logger.info('Database write operation', {
+                model: params.model,
+                action: params.action,
+                duration
+              });
+            }
+
+            return result;
+          } catch (error) {
+            lastError = error;
+            if (attempt < MAX_RETRIES && isRetryableError(error)) {
+              const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1); // 200, 400, 800ms
+              logger.warn(`DB transient error on ${params.model}.${params.action}, retry ${attempt}/${MAX_RETRIES} in ${delay}ms`, {
+                error: error instanceof Error ? error.message : String(error),
+                model: params.model,
+                action: params.action,
+              });
+              await new Promise(resolve => setTimeout(resolve, delay));
+
+              // Reset client on connection errors so Prisma opens a fresh connection
+              if (attempt === 2) {
+                resetPrismaClient();
+              }
+            } else {
+              break;
+            }
+          }
         }
-        
-        // Log all write operations for audit trail in production
-        if (isProduction && ['create', 'update', 'delete', 'createMany', 'updateMany', 'deleteMany'].includes(params.action || '')) {
-          logger.info('Database write operation', {
-            model: params.model,
-            action: params.action,
-            duration
-          });
-        }
-        
-        return result;
+
+        throw lastError;
       });
 
       // Only auto-connect in Lambda environment

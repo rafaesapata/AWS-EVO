@@ -35,7 +35,7 @@ const noAuth = args.includes('--no-auth');
 const verbose = args.includes('--verbose') || args.includes('-v');
 
 // Parse port
-let port = 3001;
+let port = 4201;
 const portIdx = args.findIndex(a => a === '--port' || a === '-p');
 if (portIdx >= 0 && args[portIdx + 1]) port = parseInt(args[portIdx + 1], 10);
 
@@ -397,16 +397,27 @@ async function main() {
       const elapsed = Date.now() - startTime;
       console.error(`💥 ${req.method} ${routePath} → ERROR (${elapsed}ms):`, err.message);
       if (verbose) console.error(err.stack);
+
+      // Auto-recovery: clear cached handler so next request retries fresh import
+      if (handlerFile) handlerCache.delete(handlerFile);
+
+      // Detect DB connection errors and hint about tunnel
+      const isDbError = /ECONNREFUSED|ETIMEDOUT|connection.*refused|prisma.*connect/i.test(err.message);
+      if (isDbError) {
+        console.log(`🔄 DB connection error detected — is the SSH tunnel running?`);
+      }
+
       res.status(500).json({
         success: false,
         error: err.message,
         handler: handlerFile,
+        ...(isDbError ? { hint: 'DB connection failed. Run: ./backend/scripts/db-tunnel.sh' } : {}),
       });
     }
   });
 
   // Start server
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`\n✅ Server running on http://localhost:${port}`);
     console.log(`   Tunnel: ${hasTunnel ? 'ON (DB via SSH)' : 'OFF'}`);
     console.log(`   Auth: ${noAuth ? 'DISABLED' : 'JWT decode (Cognito tokens)'}`);
@@ -417,7 +428,25 @@ async function main() {
     console.log(`   GET  http://localhost:${port}/routes`);
     console.log(`   POST http://localhost:${port}/api/functions/<name>\n`);
   });
+
+  // Graceful error recovery — keep server alive on unhandled errors
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${port} already in use. Try: --port ${port + 1}`);
+      process.exit(1);
+    }
+    console.error('⚠️  Server error (recovered):', err.message);
+  });
 }
+
+// Global handlers — prevent process crash
+process.on('uncaughtException', (err) => {
+  console.error('⚠️  Uncaught exception (server still running):', err.message);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  console.error('⚠️  Unhandled rejection (server still running):', reason?.message || reason);
+});
 
 main().catch(err => {
   console.error('Fatal:', err);

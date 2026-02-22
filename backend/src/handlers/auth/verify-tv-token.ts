@@ -31,9 +31,6 @@ export async function handler(
     return corsOptions(origin);
   }
 
-  // Note: TV token verification doesn't use standard Cognito auth
-  // It uses its own token-based authentication
-
   try {
     const prisma = getPrismaClient();
     const body: TVTokenRequest = JSON.parse(event.body || '{}');
@@ -57,7 +54,34 @@ export async function handler(
       }, 200, origin);
     }
 
-    // Buscar token no banco
+    // First try tv_dashboards (new system with custom layouts)
+    const tvDashboard = await prisma.tvDashboard.findFirst({
+      where: {
+        access_token: token,
+        is_active: true
+      }
+    });
+
+    if (tvDashboard) {
+      // Update last_accessed_at asynchronously
+      prisma.tvDashboard.update({
+        where: { id: tvDashboard.id },
+        data: { last_accessed_at: new Date() }
+      }).catch((err: any) => logger.warn('Failed to update last_accessed_at', { error: err.message }));
+
+      return success({
+        success: true,
+        dashboard: {
+          id: tvDashboard.id,
+          name: tvDashboard.name,
+          layout: tvDashboard.layout as any[],
+          refreshInterval: tvDashboard.refresh_interval,
+          organizationId: tvDashboard.organization_id
+        }
+      }, 200, origin);
+    }
+
+    // Fallback to legacy tv_display_tokens
     const tvToken = await prisma.tvDisplayToken.findFirst({
       where: {
         token,
