@@ -433,16 +433,7 @@ export default function CommunicationCenter() {
                       </div>
                     )}
 
-                    {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
-                      <div className="pt-4 border-t">
-                        <label className="text-sm font-medium text-muted-foreground">{t('communication.metadata')}</label>
-                        <pre className="mt-1 p-3 rounded-md bg-muted/50 text-xs overflow-x-auto">
-                          {JSON.stringify(selectedLog.metadata, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-
-                    {/* Resend Actions - only for email channel */}
+                    {/* Resend Actions - only for email channel - BEFORE metadata so always visible */}
                     {selectedLog.channel === 'email' && (
                       <div className="pt-4 border-t space-y-3">
                         <label className="text-sm font-medium text-muted-foreground">{t('communication.actions')}</label>
@@ -488,6 +479,15 @@ export default function CommunicationCenter() {
                             </Button>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
+                      <div className="pt-4 border-t">
+                        <label className="text-sm font-medium text-muted-foreground">{t('communication.metadata')}</label>
+                        <pre className="mt-1 p-3 rounded-md bg-muted/50 text-xs overflow-x-auto max-h-32 overflow-y-auto">
+                          {JSON.stringify(selectedLog.metadata, null, 2)}
+                        </pre>
                       </div>
                     )}
                   </div>
