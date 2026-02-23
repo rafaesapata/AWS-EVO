@@ -4473,7 +4473,7 @@ Resources:
       FunctionName: !Sub '${ProjectName}-${Environment}-waf-setup-monitoring'
       CodeUri: ../backend/src/handlers/security/
       Handler: waf-setup-monitoring.handler
-      Timeout: 60
+      Timeout: 180
       Events:
         Api:
           Type: Api

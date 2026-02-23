@@ -5096,7 +5096,7 @@ Resources:
       CodeUri: ../backend/src/handlers/security/
       Handler: waf-setup-monitoring.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      Timeout: 60
+      Timeout: 180
       Events:
         Api:
           Type: HttpApi

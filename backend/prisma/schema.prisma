@@ -2159,6 +2159,8 @@ model WafMonitoringConfig {
   log_group_name        String
   subscription_filter   String?
   filter_mode           String   @default("block_only") // block_only, all_requests, hybrid
+  status                String   @default("active") // provisioning, active, error, disabled
+  status_message        String?
   is_active             Boolean  @default(true)
   last_event_at         DateTime? @db.Timestamptz(6)
   events_today          Int      @default(0)

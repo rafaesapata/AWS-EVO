@@ -34,6 +34,7 @@ import {
   DescribeSubscriptionFiltersCommand,
 } from '@aws-sdk/client-cloudwatch-logs';
 import { IAMClient, GetRoleCommand, CreateRoleCommand, PutRolePolicyCommand, UpdateAssumeRolePolicyCommand } from '@aws-sdk/client-iam';
+import { LambdaClient as SelfLambdaClient, InvokeCommand as SelfInvokeCommand } from '@aws-sdk/client-lambda';
 
 // Filter modes for WAF log collection
 type LogFilterMode = 'block_only' | 'all_requests' | 'hybrid';
@@ -58,10 +59,10 @@ const CLOUDWATCH_LOGS_ROLE_NAME = 'EVO-CloudWatch-Logs-Role';
 
 // Retry configuration for PutSubscriptionFilter (destination policy propagation)
 const SUBSCRIPTION_FILTER_MAX_RETRIES = 3;
-const SUBSCRIPTION_FILTER_RETRY_DELAY_MS = 5000;
-const POLICY_PROPAGATION_DELAY_MS = 3000;
-const IAM_PROPAGATION_DELAY_MS = 10000;
-const TRUST_POLICY_PROPAGATION_DELAY_MS = 5000;
+const SUBSCRIPTION_FILTER_RETRY_DELAY_MS = 3000;
+const POLICY_PROPAGATION_DELAY_MS = 2000;
+const IAM_PROPAGATION_DELAY_MS = 8000;
+const TRUST_POLICY_PROPAGATION_DELAY_MS = 3000;
 
 // Supported regions for WAF monitoring
 // Must include ALL regions where customers may have WAF resources
@@ -693,6 +694,19 @@ export const handler = safeHandler(async (
       return await handleGetConfigs(prisma, organizationId, accountId);
     }
     
+    // Poll provisioning status for a specific WAF config
+    if (action === 'get-status') {
+      const config = await prisma.wafMonitoringConfig.findFirst({
+        where: { 
+          organization_id: organizationId, 
+          web_acl_arn: body.webAclArn,
+        },
+        select: { status: true, status_message: true, is_active: true, web_acl_name: true, filter_mode: true },
+      });
+      if (!config) return error('WAF config not found', 404);
+      return success(config);
+    }
+    
     // SECURITY: Block write operations in demo mode (disable, setup, test-setup)
     const demoCheck = await ensureNotDemoMode(prisma, organizationId);
     if (demoCheck.blocked) return demoCheck.response;
@@ -761,32 +775,126 @@ export const handler = safeHandler(async (
     const logGroupName = getLogGroupName(webAclName);
     
     if (isEnabled) {
-      // ENABLE MONITORING
-      const result = await enableWafMonitoring({
-        wafClient,
-        logsClient,
+      // ── ASYNC SETUP: Check if this is an internal async invocation ──
+      if (body.__asyncSetup) {
+        // This is the background invocation — do the actual heavy work
+        logger.info('Async WAF setup: executing background provisioning', { organizationId, webAclArn });
+        try {
+          const result = await enableWafMonitoring({
+            wafClient,
+            logsClient,
+            webAclArn,
+            webAclName,
+            logGroupName,
+            filterMode,
+            region: wafRegion,
+            customerAwsAccountId,
+            account,
+            organizationId,
+            accountId,
+            prisma,
+            credentials,
+          });
+          
+          // Update status to active on success
+          await prisma.wafMonitoringConfig.updateMany({
+            where: { organization_id: organizationId, web_acl_arn: webAclArn },
+            data: { status: 'active', status_message: null, updated_at: new Date() },
+          });
+          
+          logger.info('Async WAF setup completed successfully', { organizationId, webAclArn, filterMode });
+          return success(result);
+        } catch (asyncErr: any) {
+          // Update status to error so frontend can show the failure
+          logger.error('Async WAF setup failed', asyncErr as Error, { organizationId, webAclArn });
+          await prisma.wafMonitoringConfig.updateMany({
+            where: { organization_id: organizationId, web_acl_arn: webAclArn },
+            data: { 
+              status: 'error', 
+              status_message: asyncErr?.message || 'Unknown error during WAF setup',
+              is_active: false,
+              updated_at: new Date(),
+            },
+          });
+          return error(asyncErr?.message || 'Async WAF setup failed', 500);
+        }
+      }
+      
+      // ── SYNC PATH: Validate, save as provisioning, fire-and-forget ──
+      // Step 0: Quick validation that the WAF exists before committing
+      try {
+        const arnParts2 = webAclArn.split(':');
+        const resourcePart = arnParts2[5];
+        const resourceParts = resourcePart.split('/');
+        const scope = resourceParts[0] === 'global' ? 'CLOUDFRONT' : 'REGIONAL';
+        await wafClient.send(new GetWebACLCommand({
+          Name: resourceParts[2],
+          Scope: scope,
+          Id: resourceParts[3],
+        }));
+      } catch (valErr: any) {
+        if (valErr.name === 'WAFNonexistentItemException') {
+          return error('The specified WAF Web ACL does not exist. Please verify the ARN.', 404);
+        }
+        throw valErr;
+      }
+      
+      // Save config with status=provisioning
+      await prisma.wafMonitoringConfig.upsert({
+        where: {
+          organization_id_web_acl_arn: {
+            organization_id: organizationId,
+            web_acl_arn: webAclArn,
+          },
+        },
+        create: {
+          organization_id: organizationId,
+          aws_account_id: accountId,
+          web_acl_arn: webAclArn,
+          web_acl_name: webAclName,
+          log_group_name: logGroupName,
+          filter_mode: filterMode,
+          status: 'provisioning',
+          is_active: false,
+        },
+        update: {
+          aws_account_id: accountId,
+          web_acl_name: webAclName,
+          log_group_name: logGroupName,
+          filter_mode: filterMode,
+          status: 'provisioning',
+          status_message: null,
+          is_active: false,
+          updated_at: new Date(),
+        },
+      });
+      
+      // Fire-and-forget: invoke self asynchronously
+      const selfFunctionName = process.env.AWS_LAMBDA_FUNCTION_NAME || 'evo-uds-v3-production-waf-setup-monitoring';
+      const selfClient = new SelfLambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
+      
+      await selfClient.send(new SelfInvokeCommand({
+        FunctionName: selfFunctionName,
+        InvocationType: 'Event', // Async — returns immediately
+        Payload: JSON.stringify({
+          body: JSON.stringify({
+            ...body,
+            __asyncSetup: true,
+          }),
+          requestContext: event.requestContext,
+          headers: event.headers,
+        }),
+      }));
+      
+      logger.info('WAF setup: async invocation dispatched', { organizationId, webAclArn, selfFunctionName });
+      
+      return success({
+        status: 'provisioning',
+        message: `WAF monitoring setup initiated for ${webAclName}. This may take up to 2 minutes.`,
         webAclArn,
         webAclName,
-        logGroupName,
         filterMode,
-        region: wafRegion,
-        customerAwsAccountId,
-        account,
-        organizationId,
-        accountId,
-        prisma,
-        credentials,
-      });
-      
-      logger.info('WAF monitoring enabled', { 
-        organizationId, 
-        accountId, 
-        webAclArn,
-        filterMode,
-        logGroupName 
-      });
-      
-      return success(result);
+      }, 202);
     } else {
       // DISABLE MONITORING
       const result = await disableWafMonitoring(
@@ -1197,8 +1305,8 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     const logDestination = `arn:aws:logs:${webAclArn.split(':')[3]}:${webAclArn.split(':')[4]}:log-group:${logGroupName}`;
     
     // Retry PutLoggingConfiguration — resource policy propagation can take a few seconds
-    const PUT_LOGGING_MAX_RETRIES = 5;
-    const PUT_LOGGING_RETRY_DELAY_MS = 5000;
+    const PUT_LOGGING_MAX_RETRIES = 4;
+    const PUT_LOGGING_RETRY_DELAY_MS = 3000;
     let putLoggingLastErr: any = null;
     
     for (let attempt = 1; attempt <= PUT_LOGGING_MAX_RETRIES; attempt++) {
@@ -1440,6 +1548,7 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
       log_group_name: logGroupName,
       subscription_filter: SUBSCRIPTION_FILTER_NAME,
       filter_mode: filterMode,
+      status: 'active',
       is_active: true,
     },
     update: {
@@ -1448,6 +1557,8 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
       log_group_name: logGroupName,
       subscription_filter: SUBSCRIPTION_FILTER_NAME,
       filter_mode: filterMode,
+      status: 'active',
+      status_message: null,
       is_active: true,
       updated_at: new Date(),
     },
@@ -1968,6 +2079,7 @@ async function handleDisableConfig(
     where: { id: configId },
     data: {
       is_active: false,
+      status: 'disabled',
       subscription_filter: null,
       updated_at: new Date(),
     },
