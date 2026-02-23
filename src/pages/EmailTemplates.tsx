@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
-import { Mail, Plus, Pencil, Trash2, Eye, Copy, Search, ToggleLeft, ToggleRight, Code, FileText } from 'lucide-react';
+import { Mail, Plus, Pencil, Trash2, Eye, Copy, Search, ToggleLeft, ToggleRight, Code, FileText, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/integrations/aws/api-client';
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface EmailTemplate {
   id: string;
@@ -324,7 +325,23 @@ export default function EmailTemplates() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0 space-y-3">
-                  {template.description && <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>}
+                  {template.description && (
+                    <div className="flex items-start gap-1.5">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button type="button" className="mt-0.5 shrink-0 text-muted-foreground hover:text-primary transition-colors">
+                              <Info className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs text-xs">
+                            <p>{template.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
+                    </div>
+                  )}
                   <div className="text-xs text-muted-foreground">
                     <span className="font-medium">{t('emailTemplates.subjectLabel', 'Assunto')}:</span> {template.subject}
                   </div>
