@@ -35,13 +35,10 @@ export async function handler(
     });
 
     // Buscar scans travados (running, pending, starting)
+    // started_at has @default(now()) so it's never null — filter directly
     const whereClause: any = {
       status: { in: ['running', 'pending', 'starting'] },
-      OR: [
-        { started_at: { lt: stuckThreshold } },
-        // Pending scans that were never started - use created_at
-        { status: 'pending', started_at: null, created_at: { lt: stuckThreshold } },
-      ],
+      started_at: { lt: stuckThreshold },
     };
 
     if (targetOrganizationId) {
