@@ -670,8 +670,23 @@ export const handler = safeHandler(async (
     return corsOptions();
   }
   
-  const user = getUserFromEvent(event);
-  const organizationId = getOrganizationIdWithImpersonation(event, user);
+  // Parse body early to detect async background invocation
+  const body = event.body ? JSON.parse(event.body) : {};
+  
+  // For async background invocations, skip Cognito auth extraction
+  // The self-invoke passes organizationId directly in the body
+  let user: any;
+  let organizationId: string;
+  
+  if (body.__asyncSetup && body.__organizationId) {
+    // Background async invocation — no Cognito authorizer available
+    organizationId = body.__organizationId;
+    user = { sub: body.__userId || 'async-worker' };
+    logger.info('WAF Setup Monitoring: async background invocation', { organizationId });
+  } else {
+    user = getUserFromEvent(event);
+    organizationId = getOrganizationIdWithImpersonation(event, user);
+  }
   
   logger.info('WAF Setup Monitoring started', { 
     organizationId,
@@ -680,7 +695,6 @@ export const handler = safeHandler(async (
   });
   
   try {
-    const body = event.body ? JSON.parse(event.body) : {};
     const { action, accountId, webAclArn, enabled, filterMode = 'block_only' } = body;
     
     const prisma = getPrismaClient();
@@ -880,6 +894,8 @@ export const handler = safeHandler(async (
           body: JSON.stringify({
             ...body,
             __asyncSetup: true,
+            __organizationId: organizationId,
+            __userId: user.sub,
           }),
           requestContext: event.requestContext,
           headers: event.headers,
