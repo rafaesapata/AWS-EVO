@@ -16,7 +16,7 @@ Parameters:
     Description: 'External ID for secure cross-account access (provided by EVO Platform). This value ensures only authorized access.'
     MinLength: 20
     MaxLength: 100
-    AllowedPattern: '^evo-[a-z0-9]+-[a-z0-9]+$'
+    AllowedPattern: '^evo-[a-z0-9]+-[a-z0-9]+'
     ConstraintDescription: 'External ID must start with "evo-" followed by alphanumeric characters'
   
   AccountName:
@@ -24,14 +24,14 @@ Parameters:
     Description: 'Friendly name for this AWS account in EVO Platform (e.g., Production, Development)'
     Default: 'AWS Account'
     MaxLength: 64
-    AllowedPattern: '^[\w\s\-]*$'
+    AllowedPattern: '^[\w\s\-]*'
     ConstraintDescription: 'Account name can only contain letters, numbers, spaces, and hyphens'
   
   EVOPlatformAccountId:
     Type: String
     Description: 'AWS Account ID of EVO Platform (provided automatically). Restricts who can assume this role.'
     Default: '523115032346'
-    AllowedPattern: '^\d{12}$'
+    AllowedPattern: '^\d{12}'
     ConstraintDescription: 'Must be a valid 12-digit AWS Account ID'
 
 # ==============================================================================
@@ -67,20 +67,23 @@ Resources:
     Properties:
       RoleName: !Sub 'EVO-Platform-Role-${AWS::StackName}'
       Description: 'IAM Role for EVO Platform cross-account read-only access. All permissions are read-only.'
-      MaxSessionDuration: 3600  # 1 hour max session
+      MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Sid: AllowEVOPlatformAssumeRole
             Effect: Allow
             Principal:
-              # SECURITY: Restricted to EVO Platform AWS Account only
               AWS: !Sub 'arn:aws:iam::${EVOPlatformAccountId}:root'
             Action: 'sts:AssumeRole'
             Condition:
               StringEquals:
-                # External ID provides additional security - only requests with matching External ID are allowed
                 'sts:ExternalId': !Ref ExternalId
+      ManagedPolicyArns:
+        - !Ref EVOPlatformComputeStoragePolicy
+        - !Ref EVOPlatformSecurityMonitoringPolicy
+        - !Ref EVOPlatformNetworkingCostsPolicy
+        - !Ref EVOPlatformSelfUpdatePolicy
       Tags:
         - Key: Name
           Value: !Sub 'EVO-Platform-Role-${AWS::StackName}'
@@ -95,21 +98,19 @@ Resources:
         - Key: EVOPlatformAccountId
           Value: !Ref EVOPlatformAccountId
         - Key: TemplateVersion
-          Value: '2.7.0-fix-waf-preflight'
+          Value: '3.0.0-managed-policies'
 
   # ----------------------------------------------------------------------------
-  # Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
+  # Managed Policy 1: Compute & Storage Services (EC2, S3, RDS, Lambda, etc.)
   # ----------------------------------------------------------------------------
   EVOPlatformComputeStoragePolicy:
-    Type: 'AWS::IAM::Policy'
+    Type: 'AWS::IAM::ManagedPolicy'
     Properties:
-      PolicyName: 'EVO-Platform-ComputeStorage'
-      Roles:
-        - !Ref EVOPlatformRole
+      ManagedPolicyName: !Sub 'EVO-Platform-ComputeStorage-${AWS::StackName}'
+      Description: 'EVO Platform - Compute & Storage read-only access'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          # EC2 Read Access
           - Sid: EC2ReadAccess
             Effect: Allow
             Action:
@@ -133,8 +134,6 @@ Resources:
               - 'ec2:DescribeRegions'
               - 'ec2:DescribeAvailabilityZones'
             Resource: '*'
-          
-          # S3 Read Access
           - Sid: S3ReadAccess
             Effect: Allow
             Action:
@@ -152,8 +151,6 @@ Resources:
               - 's3:GetLifecycleConfiguration'
               - 's3:GetReplicationConfiguration'
             Resource: '*'
-          
-          # RDS Read Access
           - Sid: RDSReadAccess
             Effect: Allow
             Action:
@@ -165,8 +162,6 @@ Resources:
               - 'rds:DescribeDBParameterGroups'
               - 'rds:ListTagsForResource'
             Resource: '*'
-          
-          # Lambda Read Access
           - Sid: LambdaReadAccess
             Effect: Allow
             Action:
@@ -176,8 +171,6 @@ Resources:
               - 'lambda:ListTags'
               - 'lambda:GetPolicy'
             Resource: '*'
-          
-          # Auto Scaling Read Access
           - Sid: AutoScalingReadAccess
             Effect: Allow
             Action:
@@ -187,8 +180,6 @@ Resources:
               - 'autoscaling:DescribePolicies'
               - 'autoscaling:DescribeScalingActivities'
             Resource: '*'
-          
-          # ElastiCache Read Access
           - Sid: ElastiCacheReadAccess
             Effect: Allow
             Action:
@@ -196,8 +187,6 @@ Resources:
               - 'elasticache:DescribeReservedCacheNodes'
               - 'elasticache:ListTagsForResource'
             Resource: '*'
-          
-          # DynamoDB Read Access
           - Sid: DynamoDBReadAccess
             Effect: Allow
             Action:
@@ -208,18 +197,16 @@ Resources:
             Resource: '*'
 
   # ----------------------------------------------------------------------------
-  # Policy 2: Security & Monitoring Services (IAM, CloudWatch, CloudTrail, etc.)
+  # Managed Policy 2: Security & Monitoring Services (IAM, CloudWatch, CloudTrail, etc.)
   # ----------------------------------------------------------------------------
   EVOPlatformSecurityMonitoringPolicy:
-    Type: 'AWS::IAM::Policy'
+    Type: 'AWS::IAM::ManagedPolicy'
     Properties:
-      PolicyName: 'EVO-Platform-SecurityMonitoring'
-      Roles:
-        - !Ref EVOPlatformRole
+      ManagedPolicyName: !Sub 'EVO-Platform-SecurityMonitoring-${AWS::StackName}'
+      Description: 'EVO Platform - Security & Monitoring read-only access'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          # IAM Read Access (Security Analysis)
           - Sid: IAMReadAccess
             Effect: Allow
             Action:
@@ -244,8 +231,6 @@ Resources:
               - 'iam:ListVirtualMFADevices'
               - 'iam:SimulatePrincipalPolicy'
             Resource: '*'
-          
-          # CloudWatch Read Access (Metrics & Alarms)
           - Sid: CloudWatchReadAccess
             Effect: Allow
             Action:
@@ -257,8 +242,6 @@ Resources:
               - 'cloudwatch:GetDashboard'
               - 'cloudwatch:ListDashboards'
             Resource: '*'
-          
-          # CloudTrail Read Access (Audit Logs)
           - Sid: CloudTrailReadAccess
             Effect: Allow
             Action:
@@ -267,8 +250,6 @@ Resources:
               - 'cloudtrail:LookupEvents'
               - 'cloudtrail:GetEventSelectors'
             Resource: '*'
-          
-          # CloudWatch Logs Read Access
           - Sid: CloudWatchLogsReadAccess
             Effect: Allow
             Action:
@@ -276,8 +257,6 @@ Resources:
               - 'logs:DescribeLogStreams'
               - 'logs:DescribeMetricFilters'
             Resource: '*'
-          
-          # CloudWatch Logs WAF Monitoring (for WAF log groups only)
           - Sid: CloudWatchLogsWAFMonitoring
             Effect: Allow
             Action:
@@ -289,8 +268,6 @@ Resources:
             Resource:
               - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*'
               - !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:aws-waf-logs-*:*'
-          
-          # CloudWatch Logs Resource Policy (account-level API, requires * resource)
           - Sid: CloudWatchLogsResourcePolicy
             Effect: Allow
             Action:
@@ -298,8 +275,6 @@ Resources:
               - 'logs:DescribeResourcePolicies'
               - 'logs:DeleteResourcePolicy'
             Resource: '*'
-          
-          # CloudWatch Logs Cross-Account Subscription (for EVO WAF monitoring)
           - Sid: CloudWatchLogsCrossAccountSubscription
             Effect: Allow
             Action:
@@ -307,8 +282,6 @@ Resources:
             Resource:
               - !Sub 'arn:aws:logs:*:${EVOPlatformAccountId}:destination:evo-uds-v3-production-waf-logs-destination'
               - !Sub 'arn:aws:logs:*:${EVOPlatformAccountId}:destination:evo-waf-log-destination'
-          
-          # KMS Read Access (Encryption Analysis)
           - Sid: KMSReadAccess
             Effect: Allow
             Action:
@@ -318,8 +291,6 @@ Resources:
               - 'kms:GetKeyPolicy'
               - 'kms:GetKeyRotationStatus'
             Resource: '*'
-          
-          # GuardDuty Read Access (Threat Detection)
           - Sid: GuardDutyReadAccess
             Effect: Allow
             Action:
@@ -329,8 +300,6 @@ Resources:
               - 'guardduty:GetFindings'
               - 'guardduty:GetFindingsStatistics'
             Resource: '*'
-          
-          # AWS Config Read Access (Compliance)
           - Sid: ConfigReadAccess
             Effect: Allow
             Action:
@@ -340,8 +309,6 @@ Resources:
               - 'config:DescribeConfigurationRecorders'
               - 'config:DescribeConfigurationRecorderStatus'
             Resource: '*'
-          
-          # SSM Read Access (Systems Manager)
           - Sid: SSMReadAccess
             Effect: Allow
             Action:
@@ -350,8 +317,6 @@ Resources:
               - 'ssm:ListComplianceItems'
               - 'ssm:ListComplianceSummaries'
             Resource: '*'
-          
-          # Security Hub Read Access
           - Sid: SecurityHubReadAccess
             Effect: Allow
             Action:
@@ -360,8 +325,6 @@ Resources:
               - 'securityhub:DescribeHub'
               - 'securityhub:DescribeStandards'
             Resource: '*'
-          
-          # Inspector Read Access
           - Sid: InspectorReadAccess
             Effect: Allow
             Action:
@@ -369,8 +332,6 @@ Resources:
               - 'inspector2:ListCoverage'
               - 'inspector2:GetFindingsReportStatus'
             Resource: '*'
-          
-          # Well-Architected Tool Read Access
           - Sid: WellArchitectedReadAccess
             Effect: Allow
             Action:
@@ -382,18 +343,16 @@ Resources:
             Resource: '*'
 
   # ----------------------------------------------------------------------------
-  # Policy 3: Networking, Containers & Cost Management
+  # Managed Policy 3: Networking, Containers & Cost Management
   # ----------------------------------------------------------------------------
   EVOPlatformNetworkingCostsPolicy:
-    Type: 'AWS::IAM::Policy'
+    Type: 'AWS::IAM::ManagedPolicy'
     Properties:
-      PolicyName: 'EVO-Platform-NetworkingCosts'
-      Roles:
-        - !Ref EVOPlatformRole
+      ManagedPolicyName: !Sub 'EVO-Platform-NetworkingCosts-${AWS::StackName}'
+      Description: 'EVO Platform - Networking, Containers & Cost Management read-only access'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          # ECS Read Access (Containers)
           - Sid: ECSReadAccess
             Effect: Allow
             Action:
@@ -408,8 +367,6 @@ Resources:
               - 'ecs:DescribeTaskDefinition'
               - 'ecs:ListTaskDefinitions'
             Resource: '*'
-          
-          # EKS Read Access (Kubernetes)
           - Sid: EKSReadAccess
             Effect: Allow
             Action:
@@ -418,8 +375,6 @@ Resources:
               - 'eks:ListNodegroups'
               - 'eks:DescribeNodegroup'
             Resource: '*'
-          
-          # Load Balancers Read Access
           - Sid: ELBReadAccess
             Effect: Allow
             Action:
@@ -435,8 +390,6 @@ Resources:
               - 'elasticloadbalancingv2:DescribeRules'
               - 'elasticloadbalancingv2:DescribeTags'
             Resource: '*'
-          
-          # CloudFront Read Access (CDN)
           - Sid: CloudFrontReadAccess
             Effect: Allow
             Action:
@@ -445,8 +398,6 @@ Resources:
               - 'cloudfront:GetDistributionConfig'
               - 'cloudfront:ListTagsForResource'
             Resource: '*'
-          
-          # WAF Read Access (Web Application Firewall)
           - Sid: WAFReadAccess
             Effect: Allow
             Action:
@@ -466,8 +417,6 @@ Resources:
               - 'wafv2:ListIPSets'
               - 'wafv2:CreateIPSet'
             Resource: '*'
-          
-          # Route53 Read Access (DNS)
           - Sid: Route53ReadAccess
             Effect: Allow
             Action:
@@ -475,15 +424,11 @@ Resources:
               - 'route53:GetHostedZone'
               - 'route53:ListResourceRecordSets'
             Resource: '*'
-          
-          # API Gateway Read Access
           - Sid: APIGatewayReadAccess
             Effect: Allow
             Action:
               - 'apigateway:GET'
             Resource: '*'
-          
-          # Cost Explorer Read Access (Cost Analysis)
           - Sid: CostExplorerReadAccess
             Effect: Allow
             Action:
@@ -500,8 +445,6 @@ Resources:
               - 'ce:GetTags'
               - 'ce:GetAnomalies'
             Resource: '*'
-          
-          # Budgets Read Access
           - Sid: BudgetsReadAccess
             Effect: Allow
             Action:
@@ -509,15 +452,11 @@ Resources:
               - 'budgets:DescribeBudgets'
               - 'budgets:DescribeBudgetPerformanceHistory'
             Resource: '*'
-          
-          # Cost and Usage Reports Read Access
           - Sid: CURReadAccess
             Effect: Allow
             Action:
               - 'cur:DescribeReportDefinitions'
             Resource: '*'
-          
-          # Savings Plans Read Access
           - Sid: SavingsPlansReadAccess
             Effect: Allow
             Action:
@@ -525,8 +464,6 @@ Resources:
               - 'savingsplans:DescribeSavingsPlansOfferings'
               - 'savingsplans:ListTagsForResource'
             Resource: '*'
-          
-          # Organizations Read Access (Multi-Account)
           - Sid: OrganizationsReadAccess
             Effect: Allow
             Action:
@@ -534,15 +471,11 @@ Resources:
               - 'organizations:DescribeAccount'
               - 'organizations:DescribeOrganization'
             Resource: '*'
-          
-          # STS - Identity Verification
           - Sid: STSAccess
             Effect: Allow
             Action:
               - 'sts:GetCallerIdentity'
             Resource: '*'
-          
-          # Pricing API Access (for cost optimization)
           - Sid: PricingReadAccess
             Effect: Allow
             Action:
@@ -552,16 +485,14 @@ Resources:
             Resource: '*'
 
   # ----------------------------------------------------------------------------
-  # Policy 4: Self-Update Policy (allows EVO to add missing permissions automatically)
-  # This enables automatic remediation when customers have outdated CloudFormation stacks
+  # Managed Policy 4: Self-Update Policy (allows EVO to add missing permissions)
   # Scoped to ONLY the EVO Platform Role itself - cannot modify any other IAM resources
   # ----------------------------------------------------------------------------
   EVOPlatformSelfUpdatePolicy:
-    Type: 'AWS::IAM::Policy'
+    Type: 'AWS::IAM::ManagedPolicy'
     Properties:
-      PolicyName: 'EVO-Platform-SelfUpdate'
-      Roles:
-        - !Ref EVOPlatformRole
+      ManagedPolicyName: !Sub 'EVO-Platform-SelfUpdate-${AWS::StackName}'
+      Description: 'EVO Platform - Self-update and WAF monitoring IAM access'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -571,15 +502,14 @@ Resources:
               - 'iam:PutRolePolicy'
               - 'iam:GetRolePolicy'
               - 'iam:ListRolePolicies'
-            Resource: !GetAtt EVOPlatformRole.Arn
-          
-          # WAF Monitoring: Validate permissions pre-flight and manage CloudWatch Logs role
+              - 'iam:AttachRolePolicy'
+              - 'iam:ListAttachedRolePolicies'
+            Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/EVO-Platform-Role-*'
           - Sid: WAFMonitoringIAMAccess
             Effect: Allow
             Action:
               - 'iam:SimulatePrincipalPolicy'
-            Resource: !GetAtt EVOPlatformRole.Arn
-          
+            Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/EVO-Platform-Role-*'
           - Sid: WAFCloudWatchLogsRoleManagement
             Effect: Allow
             Action:
@@ -588,8 +518,6 @@ Resources:
               - 'iam:PutRolePolicy'
               - 'iam:UpdateAssumeRolePolicy'
             Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/EVO-CloudWatch-Logs-Role'
-
-          # WAF Monitoring: Create Service-Linked Role for WAF logging
           - Sid: WAFServiceLinkedRole
             Effect: Allow
             Action:
@@ -598,7 +526,6 @@ Resources:
             Condition:
               StringEquals:
                 'iam:AWSServiceName': 'wafv2.amazonaws.com'
-
           - Sid: WAFServiceLinkedRoleCheck
             Effect: Allow
             Action:
@@ -607,7 +534,6 @@ Resources:
 
   # ----------------------------------------------------------------------------
   # IAM Role for CloudWatch Logs Cross-Account Subscription (WAF Monitoring)
-  # IMPORTANT: Using fixed name 'EVO-CloudWatch-Logs-Role' for predictable lookup
   # ----------------------------------------------------------------------------
   EVOCloudWatchLogsRole:
     Type: 'AWS::IAM::Role'
