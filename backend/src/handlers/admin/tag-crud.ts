@@ -14,6 +14,30 @@ import { getTagPolicies, saveTagPolicies } from '../../lib/tags/tag-policy-servi
 import { setTagParent, getTagTree, getDescendants, mergeTags, renameTag } from '../../lib/tags/tag-hierarchy-service.js';
 import { listAutoRules, createAutoRule, updateAutoRule, deleteAutoRule, executeAutoRules } from '../../lib/tags/tag-auto-rules-service.js';
 import { getTagCostDrilldown, getTagCostSparkline } from '../../lib/tags/tag-cost-drilldown-service.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
+import { getPrismaClient } from '../../lib/database.js';
+
+// Demo tags — must match frontend src/lib/demo/tag-demo-data.ts DEMO_TAGS
+const DEMO_TAGS = [
+  { id: 'demo-tag-001', key: 'environment', value: 'production', color: '#EF4444', category: 'ENVIRONMENT', description: 'Production workloads', usage_count: 142, created_at: '2025-11-15T10:00:00Z' },
+  { id: 'demo-tag-002', key: 'environment', value: 'staging', color: '#F59E0B', category: 'ENVIRONMENT', description: 'Staging environment', usage_count: 87, created_at: '2025-11-15T10:05:00Z' },
+  { id: 'demo-tag-003', key: 'environment', value: 'development', color: '#3B82F6', category: 'ENVIRONMENT', description: 'Development environment', usage_count: 63, created_at: '2025-11-15T10:10:00Z' },
+  { id: 'demo-tag-004', key: 'cost-center', value: 'engineering', color: '#8B5CF6', category: 'COST_CENTER', description: 'Engineering department', usage_count: 198, created_at: '2025-11-20T08:00:00Z' },
+  { id: 'demo-tag-005', key: 'cost-center', value: 'marketing', color: '#EC4899', category: 'COST_CENTER', description: 'Marketing department', usage_count: 45, created_at: '2025-11-20T08:05:00Z' },
+  { id: 'demo-tag-006', key: 'cost-center', value: 'data-science', color: '#14B8A6', category: 'COST_CENTER', description: 'Data Science team', usage_count: 34, created_at: '2025-11-20T08:10:00Z' },
+  { id: 'demo-tag-007', key: 'team', value: 'platform', color: '#06B6D4', category: 'TEAM', description: 'Platform team', usage_count: 112, created_at: '2025-12-01T09:00:00Z' },
+  { id: 'demo-tag-008', key: 'team', value: 'backend', color: '#10B981', category: 'TEAM', description: 'Backend team', usage_count: 89, created_at: '2025-12-01T09:05:00Z' },
+  { id: 'demo-tag-009', key: 'team', value: 'frontend', color: '#F97316', category: 'TEAM', description: 'Frontend team', usage_count: 56, created_at: '2025-12-01T09:10:00Z' },
+  { id: 'demo-tag-010', key: 'project', value: 'evo-platform', color: '#6366F1', category: 'PROJECT', description: 'EVO Platform project', usage_count: 234, created_at: '2025-12-05T14:00:00Z' },
+  { id: 'demo-tag-011', key: 'project', value: 'data-pipeline', color: '#0EA5E9', category: 'PROJECT', description: 'Data Pipeline project', usage_count: 67, created_at: '2025-12-05T14:05:00Z' },
+  { id: 'demo-tag-012', key: 'compliance', value: 'pci-dss', color: '#DC2626', category: 'COMPLIANCE', description: 'PCI DSS compliant resources', usage_count: 28, created_at: '2025-12-10T11:00:00Z' },
+  { id: 'demo-tag-013', key: 'compliance', value: 'hipaa', color: '#B91C1C', category: 'COMPLIANCE', description: 'HIPAA compliant resources', usage_count: 15, created_at: '2025-12-10T11:05:00Z' },
+  { id: 'demo-tag-014', key: 'criticality', value: 'high', color: '#EF4444', category: 'CRITICALITY', description: 'High criticality resources', usage_count: 76, created_at: '2025-12-12T16:00:00Z' },
+  { id: 'demo-tag-015', key: 'criticality', value: 'medium', color: '#F59E0B', category: 'CRITICALITY', description: 'Medium criticality', usage_count: 124, created_at: '2025-12-12T16:05:00Z' },
+  { id: 'demo-tag-016', key: 'criticality', value: 'low', color: '#22C55E', category: 'CRITICALITY', description: 'Low criticality', usage_count: 89, created_at: '2025-12-12T16:10:00Z' },
+  { id: 'demo-tag-017', key: 'backup', value: 'daily', color: '#7C3AED', category: 'CUSTOM', description: 'Daily backup policy', usage_count: 52, created_at: '2025-12-15T13:00:00Z' },
+  { id: 'demo-tag-018', key: 'auto-shutdown', value: 'enabled', color: '#059669', category: 'CUSTOM', description: 'Auto-shutdown enabled', usage_count: 31, created_at: '2025-12-15T13:05:00Z' },
+];
 
 function getOrigin(event: AuthorizedEvent): string {
   return event.headers?.['origin'] || event.headers?.['Origin'] || '*';
@@ -56,6 +80,21 @@ function audit(ctx: ActionContext, action: AuditAction, resourceType: AuditResou
 
 const actions: Record<string, (ctx: ActionContext) => Promise<APIGatewayProxyResultV2>> = {
   async list(ctx) {
+    // Demo mode: return hardcoded demo tags (no DB queries)
+    const prisma = getPrismaClient();
+    const isDemo = await isOrganizationInDemoMode(prisma, ctx.organizationId);
+    if (isDemo) {
+      let filtered = [...DEMO_TAGS];
+      if (ctx.body.category) filtered = filtered.filter(t => t.category === ctx.body.category);
+      if (ctx.body.search) {
+        const s = ctx.body.search.toLowerCase();
+        filtered = filtered.filter(t =>
+          t.key.toLowerCase().includes(s) || t.value.toLowerCase().includes(s)
+        );
+      }
+      return success({ tags: filtered, total: filtered.length, nextCursor: null, _isDemo: true }, 200, ctx.origin);
+    }
+
     const result = await listTags({
       organizationId: ctx.organizationId,
       category: ctx.body.category, key: ctx.body.key, search: ctx.body.search,
