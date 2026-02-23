@@ -95,10 +95,16 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
    },
  });
 
+ // Resolve tag services into a stable string for query key / body
+ const tagServicesList = tagFilterIds.length > 0 ? (tagServices?.services ?? null) : undefined;
+ // null  = tags selected but services not loaded yet → disable query
+ // undefined = no tags selected → ignore
+ // string[] = ready to filter
+
  // Get daily costs - FILTERED BY SELECTED ACCOUNT - enabled in demo mode
  const { data: allCosts, isLoading } = useQuery({
- queryKey: ['cost-analysis-raw', 'org', organizationId, 'account', selectedAccountId, dateRange, customStartDate, customEndDate],
- enabled: shouldEnableAccountQuery(),
+ queryKey: ['cost-analysis-raw', 'org', organizationId, 'account', selectedAccountId, dateRange, customStartDate, customEndDate, tagServicesList ?? '__none__'],
+ enabled: shouldEnableAccountQuery() && tagServicesList !== null,
  staleTime: 5 * 60 * 1000, // 5 minutes - allow refetch on account change
  gcTime: 60 * 60 * 1000,
  refetchOnWindowFocus: false,
@@ -130,7 +136,8 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
        startDate: startDateStr,
        endDate: endDateStr,
        granularity: 'DAILY',
-       incremental: true
+       incremental: true,
+       ...(tagServicesList && tagServicesList.length > 0 && { services: tagServicesList }),
      };
  
  const lambdaResponse = await apiClient.invoke<any>('fetch-daily-costs', {
@@ -344,27 +351,32 @@ export const CostAnalysisPage = ({ embedded = false }: CostAnalysisPageProps) =>
  }
 
  // Filter by tags: match services associated with selected tags
- if (tagFilterIds.length > 0 && tagServices?.services && tagServices.services.length > 0) {
-   const tagServiceSet = new Set(tagServices.services.map((s: string) => s.toLowerCase()));
-   filteredCosts = filteredCosts.map(cost => {
-     if (!cost.service_breakdown) return null;
-     // Filter service_breakdown to only include matching services
-     const matchedBreakdown: Record<string, number> = {};
-     let matchedTotal = 0;
-     for (const [service, value] of Object.entries(cost.service_breakdown)) {
-       if (tagServiceSet.has(service.toLowerCase())) {
-         matchedBreakdown[service] = value as number;
-         matchedTotal += value as number;
+ if (tagFilterIds.length > 0 && tagServices?.services) {
+   // If tags are selected but no services match, show empty results
+   if (tagServices.services.length === 0) {
+     filteredCosts = [];
+   } else {
+     const tagServiceSet = new Set(tagServices.services.map((s: string) => s.toLowerCase()));
+     filteredCosts = filteredCosts.map(cost => {
+       if (!cost.service_breakdown) return null;
+       // Filter service_breakdown to only include matching services
+       const matchedBreakdown: Record<string, number> = {};
+       let matchedTotal = 0;
+       for (const [service, value] of Object.entries(cost.service_breakdown)) {
+         if (tagServiceSet.has(service.toLowerCase())) {
+           matchedBreakdown[service] = value as number;
+           matchedTotal += value as number;
+         }
        }
-     }
-     if (matchedTotal === 0) return null;
-     return {
-       ...cost,
-       total_cost: matchedTotal,
-       net_cost: matchedTotal,
-       service_breakdown: matchedBreakdown,
-     };
-   }).filter(cost => cost !== null);
+       if (matchedTotal === 0) return null;
+       return {
+         ...cost,
+         total_cost: matchedTotal,
+         net_cost: matchedTotal,
+         service_breakdown: matchedBreakdown,
+       };
+     }).filter(cost => cost !== null);
+   }
  }
 
  return filteredCosts;
