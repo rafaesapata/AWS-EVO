@@ -41,7 +41,7 @@ const OTHER_LAMBDAS = [
   // Auth & MFA (restantes)
   'mfa-check', 'mfa-challenge-verify', 'mfa-list-factors', 'mfa-unenroll',
   'webauthn-authenticate', 'webauthn-check', 'delete-webauthn-credential', 'verify-tv-token',
-  'forgot-password', 'change-password', 'mfa-verify-login', 'self-register',
+  'forgot-password', 'change-password', 'self-register',
   
   // Admin (26)
   'admin-manage-user', 'create-cognito-user', 'disable-cognito-user', 'manage-organizations', 'log-audit',
@@ -94,7 +94,7 @@ const OTHER_LAMBDAS = [
   'sync-resource-inventory',
   
   // License (8)
-  'validate-license', 'configure-license', 'sync-license', 'admin-sync-license', 'manage-seats',
+  'validate-license', 'configure-license', 'sync-license', 'manage-seats',
   'daily-license-validation', 'manage-seat-assignments', 'scheduled-license-sync', 'retry-fallback-licenses',
   
   // Knowledge Base (7)
@@ -343,10 +343,10 @@ function isNotRealError(message: string): boolean {
     return true;
   }
   
-  // Skip START/END/REPORT logs unless they contain error info
-  const firstChar = message[0];
-  if ((firstChar === 'S' || firstChar === 'E' || firstChar === 'R') 
-      && message.indexOf('Error') === -1 && message.indexOf('error') === -1) {
+  // Skip START/END/REPORT Lambda runtime logs (not real errors)
+  if (message.startsWith('START RequestId:') || 
+      message.startsWith('END RequestId:') || 
+      message.startsWith('REPORT RequestId:')) {
     return true;
   }
   

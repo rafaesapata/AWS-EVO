@@ -1,7 +1,7 @@
 /**
  * Get Lambda Health - ALL Lambdas Health Check
  * 
- * Monitora a saúde de TODAS as 114+ Lambdas do sistema organizadas por categoria
+ * Monitora a saúde de TODAS as 220 Lambdas do sistema organizadas por categoria
  * 
  * OPTIMIZATIONS:
  * - Concurrency control (max 5 parallel requests) to avoid rate limiting
@@ -88,7 +88,7 @@ async function withRetry<T>(
   throw lastError;
 }
 
-// ALL Lambdas by category (219 total - synced with SAM template via get-platform-metrics.ts)
+// ALL Lambdas by category (220 total - synced with SAM template)
 const ALL_LAMBDAS = {
   onboarding: [
     { name: 'save-aws-credentials', displayName: 'Save AWS Credentials' },
@@ -256,7 +256,6 @@ const ALL_LAMBDAS = {
     { name: 'validate-license', displayName: 'Validate License' },
     { name: 'configure-license', displayName: 'Configure License' },
     { name: 'sync-license', displayName: 'Sync License' },
-    { name: 'admin-sync-license', displayName: 'Admin Sync License' },
     { name: 'manage-seats', displayName: 'Manage Seats' },
     { name: 'daily-license-validation', displayName: 'Daily License Validation' },
     { name: 'manage-seat-assignments', displayName: 'Manage Seat Assignments' },

@@ -72,6 +72,7 @@ const categoryIcons: Record<string, any> = {
  storage: Server,
  jobs: Zap,
  integrations: Server,
+ tags: Server,
 };
 
 const categoryLabels: Record<string, string> = {
@@ -90,6 +91,7 @@ const categoryLabels: Record<string, string> = {
  storage: 'Storage',
  jobs: 'Jobs',
  integrations: 'Integrações',
+ tags: 'Tags',
 };
 
 const statusConfig = {
