@@ -1910,7 +1910,8 @@
     "deleteError": "Erro ao excluir template",
     "toggled": "Status atualizado",
     "deleteTitle": "Excluir Template",
-    "deleteConfirm": "Tem certeza que deseja excluir o template \"{name}\"? Esta ação não pode ser desfeita."
+    "deleteConfirm": "Tem certeza que deseja excluir o template \"{name}\"? Esta ação não pode ser desfeita.",
+    "triggerInfo": "Informação do trigger"
   },
   "notificationSettings": {
     "title": "Configurações de Notificações",

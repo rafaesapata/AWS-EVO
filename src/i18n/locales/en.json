@@ -1641,7 +1641,8 @@
     "deleteError": "Error deleting template",
     "toggled": "Status updated",
     "deleteTitle": "Delete Template",
-    "deleteConfirm": "Are you sure you want to delete the template \"{name}\"? This action cannot be undone."
+    "deleteConfirm": "Are you sure you want to delete the template \"{name}\"? This action cannot be undone.",
+    "triggerInfo": "Trigger information"
   },
   "notificationSettings": {
     "title": "Notification Settings",
