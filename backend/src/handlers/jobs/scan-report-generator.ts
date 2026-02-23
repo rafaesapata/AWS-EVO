@@ -143,7 +143,7 @@ async function sendReportEmails(
   let emailHtml: string;
   try {
     const dbTemplate = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT html_body, subject, header_image_url FROM "EmailTemplate"
+      `SELECT html_body, subject, header_image_url FROM "email_templates"
        WHERE template_type = 'security_scan_report' AND is_active = true LIMIT 1`
     );
 

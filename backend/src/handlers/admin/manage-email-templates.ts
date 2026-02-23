@@ -188,7 +188,7 @@ async function handleCreate(
 ): Promise<APIGatewayProxyResultV2> {
   // Check if template_type already exists
   const existing = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT id FROM "EmailTemplate" WHERE template_type = $1 LIMIT 1`,
+    `SELECT id FROM "email_templates" WHERE template_type = $1 LIMIT 1`,
     data.template_type
   );
   if (existing.length > 0) {
@@ -196,7 +196,7 @@ async function handleCreate(
   }
 
   const result = await prisma.$queryRawUnsafe<any[]>(
-    `INSERT INTO "EmailTemplate" (template_type, name, description, subject, html_body, text_body, variables, category, header_image_url, is_active, created_by, updated_by)
+    `INSERT INTO "email_templates" (template_type, name, description, subject, html_body, text_body, variables, category, header_image_url, is_active, created_by, updated_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
      RETURNING id, template_type, name, description, subject, category, header_image_url, is_active, is_system, created_at`,
     data.template_type, data.name, data.description || null, data.subject,
@@ -215,7 +215,7 @@ async function handleUpdate(
 ): Promise<APIGatewayProxyResultV2> {
   // Check template exists
   const existing = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT id, is_system, template_type FROM "EmailTemplate" WHERE id = $1`,
+    `SELECT id, is_system, template_type FROM "email_templates" WHERE id = $1`,
     data.id
   );
   if (existing.length === 0) {
@@ -261,7 +261,7 @@ async function handleUpdate(
 
   const whereParam = '$' + paramIndex;
   const result = await prisma.$queryRawUnsafe<any[]>(
-    'UPDATE "EmailTemplate" SET ' + setClauses.join(', ') + ' WHERE id = ' + whereParam +
+    'UPDATE "email_templates" SET ' + setClauses.join(', ') + ' WHERE id = ' + whereParam +
     ' RETURNING id, template_type, name, description, subject, category, header_image_url, is_active, is_system, updated_at',
     ...params
   );
@@ -274,7 +274,7 @@ async function handleDelete(
   data: z.infer<typeof deleteTemplateSchema>
 ): Promise<APIGatewayProxyResultV2> {
   const existing = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT id, is_system, template_type FROM "EmailTemplate" WHERE id = $1`,
+    `SELECT id, is_system, template_type FROM "email_templates" WHERE id = $1`,
     data.id
   );
   if (existing.length === 0) {
@@ -284,7 +284,7 @@ async function handleDelete(
     return badRequest('System templates cannot be deleted, only edited');
   }
 
-  await prisma.$queryRawUnsafe(`DELETE FROM "EmailTemplate" WHERE id = $1`, data.id);
+  await prisma.$queryRawUnsafe(`DELETE FROM "email_templates" WHERE id = $1`, data.id);
   return success({ deleted: true, id: data.id });
 }
 
@@ -310,7 +310,7 @@ async function handleList(
   const templates = await prisma.$queryRawUnsafe<any[]>(
     'SELECT id, template_type, name, description, subject, category, header_image_url,' +
     ' is_active, is_system, variables, created_at, updated_at' +
-    ' FROM "EmailTemplate" ' + whereClause +
+    ' FROM "email_templates" ' + whereClause +
     ' ORDER BY is_system DESC, category, name',
     ...params
   );
@@ -331,14 +331,14 @@ async function handleGet(
     template = await prisma.$queryRawUnsafe<any[]>(
       `SELECT id, template_type, name, description, subject, html_body, text_body,
               variables, category, header_image_url, is_active, is_system, created_at, updated_at
-       FROM "EmailTemplate" WHERE id = $1`,
+       FROM "email_templates" WHERE id = $1`,
       data.id
     );
   } else {
     template = await prisma.$queryRawUnsafe<any[]>(
       `SELECT id, template_type, name, description, subject, html_body, text_body,
               variables, category, header_image_url, is_active, is_system, created_at, updated_at
-       FROM "EmailTemplate" WHERE template_type = $1`,
+       FROM "email_templates" WHERE template_type = $1`,
       data.template_type!
     );
   }
@@ -361,12 +361,12 @@ async function handlePreview(
   let template: any[];
   if (data.id) {
     template = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT subject, html_body, text_body, variables, header_image_url FROM "EmailTemplate" WHERE id = $1`,
+      `SELECT subject, html_body, text_body, variables, header_image_url FROM "email_templates" WHERE id = $1`,
       data.id
     );
   } else {
     template = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT subject, html_body, text_body, variables, header_image_url FROM "EmailTemplate" WHERE template_type = $1`,
+      `SELECT subject, html_body, text_body, variables, header_image_url FROM "email_templates" WHERE template_type = $1`,
       data.template_type!
     );
   }
@@ -396,7 +396,7 @@ async function handleUploadImage(
 ): Promise<APIGatewayProxyResultV2> {
   // Verify template exists
   const existing = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT id FROM "EmailTemplate" WHERE id = $1`,
+    `SELECT id FROM "email_templates" WHERE id = $1`,
     data.id
   );
   if (existing.length === 0) {
@@ -418,7 +418,7 @@ async function handleUploadImage(
 
   // Update template with the image URL
   await prisma.$queryRawUnsafe(
-    `UPDATE "EmailTemplate" SET header_image_url = $1, updated_at = NOW() WHERE id = $2`,
+    `UPDATE "email_templates" SET header_image_url = $1, updated_at = NOW() WHERE id = $2`,
     publicUrl, data.id
   );
 
