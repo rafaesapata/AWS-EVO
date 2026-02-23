@@ -12,6 +12,25 @@ import { success, error, corsOptions } from '../../lib/response.js';
 import { getUserFromEvent, getOrganizationIdWithImpersonation } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
+import { isOrganizationInDemoMode } from '../../lib/demo-data-service.js';
+
+// Demo tag → service mapping (must match generateDemoCostData service names)
+const DEMO_TAG_SERVICES: Record<string, string[]> = {
+  'demo-tag-001': ['Amazon EC2', 'Amazon RDS', 'Amazon S3', 'AWS Lambda', 'Amazon CloudFront', 'AWS WAF', 'Amazon Route 53'], // env:production — most services
+  'demo-tag-002': ['Amazon EC2', 'Amazon RDS', 'Amazon S3', 'AWS Lambda'],       // env:staging — subset
+  'demo-tag-003': ['Amazon EC2', 'Amazon S3', 'AWS Lambda'],                      // env:development — smaller subset
+  'demo-tag-004': ['Amazon EC2', 'Amazon RDS', 'AWS Lambda', 'Amazon DynamoDB'],  // cost-center:engineering
+  'demo-tag-005': ['Amazon CloudFront', 'Amazon S3', 'Amazon Route 53'],          // cost-center:marketing
+  'demo-tag-006': ['Amazon EC2', 'Amazon RDS', 'Amazon DynamoDB', 'Amazon S3'],   // cost-center:data-science
+  'demo-tag-007': ['Amazon EC2', 'Amazon RDS', 'AWS Lambda', 'Amazon CloudFront', 'AWS WAF'], // team:platform
+  'demo-tag-008': ['Amazon EC2', 'Amazon RDS', 'AWS Lambda', 'Amazon DynamoDB'],  // team:backend
+  'demo-tag-009': ['Amazon CloudFront', 'Amazon S3', 'Amazon Route 53'],          // team:frontend
+  'demo-tag-010': ['Amazon EC2', 'Amazon RDS', 'Amazon S3', 'AWS Lambda', 'Amazon CloudFront', 'Amazon DynamoDB', 'AWS WAF', 'Amazon Route 53'], // project:evo-platform — all
+  'demo-tag-011': ['Amazon EC2', 'Amazon RDS', 'Amazon DynamoDB', 'Amazon S3'],   // project:data-pipeline
+  'demo-tag-014': ['Amazon EC2', 'Amazon RDS', 'AWS WAF'],                        // criticality:high
+  'demo-tag-015': ['Amazon S3', 'AWS Lambda', 'Amazon CloudFront'],               // criticality:medium
+  'demo-tag-016': ['Amazon DynamoDB', 'Amazon Route 53'],                         // criticality:low
+};
 
 export async function handler(
   event: AuthorizedEvent,
@@ -33,6 +52,39 @@ export async function handler(
     }
 
     const prisma = getPrismaClient();
+
+    // Demo mode: return mapped services for demo tags
+    const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
+    if (isDemo) {
+      // AND logic: intersect services across all selected tags
+      const serviceSets = tagIds
+        .map((id: string) => DEMO_TAG_SERVICES[id])
+        .filter(Boolean);
+      
+      let services: string[];
+      if (serviceSets.length === 0) {
+        services = [];
+      } else if (serviceSets.length === 1) {
+        services = serviceSets[0];
+      } else {
+        // Intersection of all sets
+        const first = new Set(serviceSets[0]);
+        for (let i = 1; i < serviceSets.length; i++) {
+          const current = new Set(serviceSets[i]);
+          for (const s of first) {
+            if (!current.has(s)) first.delete(s);
+          }
+        }
+        services = Array.from(first);
+      }
+
+      return success({
+        services,
+        resourceCount: services.length * 3, // approximate
+        tagCount: tagIds.length,
+        _isDemo: true,
+      }, 200, origin);
+    }
 
     // Resolve accountId: frontend sends aws_credentials.id (UUID),
     // but resource_tag_assignments uses the AWS account number

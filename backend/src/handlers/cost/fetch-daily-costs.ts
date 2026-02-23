@@ -49,14 +49,26 @@ export async function handler(
     const isDemo = await isOrganizationInDemoMode(prisma, organizationId);
     
     if (isDemo === true) {
+      // Parse body to check for services filter (tag filtering in demo mode)
+      const bodyRaw = typeof event.body === 'string' ? JSON.parse(event.body || '{}') : (event.body || {});
+      const demoServices: string[] | undefined = bodyRaw.services;
+
       // Return demo data for organizations in demo mode
       logger.info('Returning demo daily costs', {
         organizationId,
         isDemo: true,
+        servicesFilter: demoServices?.length || 0,
         requestId: context.awsRequestId
       });
       
-      const demoCosts = generateDemoCostData(30);
+      let demoCosts = generateDemoCostData(30);
+      
+      // Filter demo costs by services when tag filter is active
+      if (demoServices && demoServices.length > 0) {
+        const serviceSet = new Set(demoServices.map(s => s.toLowerCase()));
+        demoCosts = demoCosts.filter(c => serviceSet.has(c.service.toLowerCase()));
+      }
+
       const totalCost = demoCosts.reduce((sum, c) => sum + c.cost, 0);
       
       const demoResponse = {
