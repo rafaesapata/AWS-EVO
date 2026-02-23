@@ -1347,6 +1347,8 @@ async function handleGetMonitoringConfigs(
       webAclName: c.web_acl_name,
       filterMode: c.filter_mode,
       isActive: c.is_active,
+      status: c.status || 'active',
+      statusMessage: c.status_message || null,
       lastEventAt: c.last_event_at,
       eventsToday: c.events_today,
       blockedToday: c.blocked_today,
