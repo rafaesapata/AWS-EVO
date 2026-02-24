@@ -1106,10 +1106,11 @@ async function ensureRegionalTrustPolicy(
  */
 async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResult> {
   const {
-    wafClient, logsClient, webAclArn, webAclName, logGroupName,
+    wafClient, logsClient, webAclArn, webAclName,
     filterMode, region, customerAwsAccountId, account,
     organizationId, accountId, prisma, credentials,
   } = ctx;
+  let logGroupName = ctx.logGroupName;
   
   // Step 0: VALIDATE that the WAF Web ACL exists BEFORE doing anything
   // This prevents creating resources for non-existent WAFs
@@ -1169,14 +1170,37 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   }
   
   // Step 1: Check if WAF logging is already configured
+  // IMPORTANT: If logging is already configured (e.g. by the customer), we must use the ACTUAL
+  // log group name from the existing config, not the one we generate from the web ACL name.
+  // Otherwise the subscription filter will be created on a different log group than where WAF
+  // is actually sending logs (e.g. "aws-waf-logs-cardmais" vs "aws-waf-logs-Cardmais-web-acl").
   logger.info('WAF setup step 1: checking existing logging config', { organizationId, webAclArn });
   let loggingConfigured = false;
+  let actualLogGroupName = logGroupName; // default to our generated name
   try {
     const loggingConfig = await wafClient.send(new GetLoggingConfigurationCommand({
       ResourceArn: webAclArn,
     }));
     loggingConfigured = !!loggingConfig.LoggingConfiguration;
-    logger.info('Existing WAF logging configuration found', { webAclArn, loggingConfigured });
+    
+    // Extract the actual log group name from the existing logging config
+    if (loggingConfigured && loggingConfig.LoggingConfiguration?.LogDestinationConfigs?.length) {
+      const destArn = loggingConfig.LoggingConfiguration.LogDestinationConfigs[0];
+      // LogDestinationConfigs ARN format: arn:aws:logs:region:account:log-group:LOG_GROUP_NAME
+      const lgMatch = destArn.match(/:log-group:(.+?)(?::.*)?$/);
+      if (lgMatch && lgMatch[1]) {
+        actualLogGroupName = lgMatch[1];
+        if (actualLogGroupName !== logGroupName) {
+          logger.info('WAF logging already configured with different log group name — using existing one', {
+            webAclArn,
+            generatedLogGroupName: logGroupName,
+            actualLogGroupName,
+          });
+        }
+      }
+    }
+    
+    logger.info('Existing WAF logging configuration found', { webAclArn, loggingConfigured, actualLogGroupName });
   } catch (err: unknown) {
     const error = err as { name?: string };
     if (error.name !== 'WAFNonexistentItemException') {
@@ -1184,6 +1208,9 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
     }
     // No logging configured yet - that's fine
   }
+  
+  // Override logGroupName with the actual one from existing WAF config (if different)
+  logGroupName = actualLogGroupName;
   
   // Step 2: Create CloudWatch Log Group if needed
   logger.info('WAF setup step 2: creating log group', { organizationId, logGroupName });
@@ -1936,11 +1963,11 @@ async function handleVerifyConfig(
   const wafClient = new WAFV2Client({ region: wafRegion, credentials });
   const logsClient = new CloudWatchLogsClient({ region: wafRegion, credentials });
   const webAclName = extractWebAclName(webAclArn);
-  const logGroupName = getLogGroupName(webAclName);
+  let logGroupName = getLogGroupName(webAclName);
 
   const checks: Record<string, any> = {};
 
-  // 1. WAF logging enabled?
+  // 1. WAF logging enabled? Also detect the ACTUAL log group name from WAF config
   try {
     const loggingResp = await wafClient.send(new GetLoggingConfigurationCommand({ ResourceArn: webAclArn }));
     const logConfig = loggingResp.LoggingConfiguration;
@@ -1949,6 +1976,18 @@ async function handleVerifyConfig(
       destinations: logConfig?.LogDestinationConfigs || [],
       hasFilter: !!logConfig?.LoggingFilter,
     };
+    // Extract actual log group name from WAF logging config
+    if (logConfig?.LogDestinationConfigs?.length) {
+      const destArn = logConfig.LogDestinationConfigs[0];
+      const lgMatch = destArn.match(/:log-group:(.+?)(?::.*)?$/);
+      if (lgMatch && lgMatch[1]) {
+        const actualLgName = lgMatch[1];
+        if (actualLgName !== logGroupName) {
+          checks.wafLogging.logGroupMismatch = { expected: logGroupName, actual: actualLgName };
+          logGroupName = actualLgName; // Use the real one for subsequent checks
+        }
+      }
+    }
   } catch (err: any) {
     if (err.name === 'WAFNonexistentItemException') {
       checks.wafLogging = { enabled: false, error: 'No logging configuration' };
@@ -1957,17 +1996,22 @@ async function handleVerifyConfig(
     }
   }
 
+  // Also check DB log_group_name vs actual
+  if (config.log_group_name && config.log_group_name !== logGroupName) {
+    checks.dbLogGroupMismatch = { dbValue: config.log_group_name, actual: logGroupName };
+  }
+
   // 2. Log group exists?
   try {
     const { DescribeLogGroupsCommand } = await import('@aws-sdk/client-cloudwatch-logs');
-    const lgResp = await logsClient.send(new DescribeLogGroupsCommand({ logGroupNamePrefix: logGroupName, limit: 1 }));
+    const lgResp = await logsClient.send(new DescribeLogGroupsCommand({ logGroupNamePrefix: logGroupName, limit: 5 }));
     const found = lgResp.logGroups?.some(lg => lg.logGroupName === logGroupName);
     checks.logGroup = { exists: !!found, name: logGroupName };
   } catch (err: any) {
     checks.logGroup = { exists: false, error: `${err.name}: ${err.message}` };
   }
 
-  // 3. Subscription filter exists?
+  // 3. Subscription filter exists on the ACTUAL log group?
   try {
     const sfResp = await logsClient.send(new DescribeSubscriptionFiltersCommand({
       logGroupName,
@@ -1979,9 +2023,10 @@ async function handleVerifyConfig(
       destinationArn: sf.destinationArn,
       roleArn: sf.roleArn,
       filterPattern: sf.filterPattern,
-    } : { exists: false };
+      logGroupName,
+    } : { exists: false, logGroupName };
   } catch (err: any) {
-    checks.subscriptionFilter = { exists: false, error: `${err.name}: ${err.message}` };
+    checks.subscriptionFilter = { exists: false, error: `${err.name}: ${err.message}`, logGroupName };
   }
 
   // 4. EVO destination exists in this region?
@@ -2037,6 +2082,14 @@ async function handleVerifyConfig(
         is_active: false,
         updated_at: new Date(),
       },
+    });
+    dbUpdated = true;
+  }
+  // Also sync log_group_name in DB if it doesn't match the actual WAF logging destination
+  if (config.log_group_name !== logGroupName && checks.wafLogging?.enabled) {
+    await prisma.wafMonitoringConfig.updateMany({
+      where: { organization_id: organizationId, web_acl_arn: webAclArn },
+      data: { log_group_name: logGroupName, updated_at: new Date() },
     });
     dbUpdated = true;
   }
