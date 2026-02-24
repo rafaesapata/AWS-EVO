@@ -721,6 +721,11 @@ export const handler = safeHandler(async (
       return success(config);
     }
     
+    // Verify real AWS state and sync DB — read-only diagnostic that also fixes DB inconsistencies
+    if (action === 'verify') {
+      return await handleVerifyConfig(prisma, organizationId, body);
+    }
+    
     // SECURITY: Block write operations in demo mode (disable, setup, test-setup)
     const demoCheck = await ensureNotDemoMode(prisma, organizationId);
     if (demoCheck.blocked) return demoCheck.response;
@@ -1263,44 +1268,74 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
   // Without it, WAF returns AccessDeniedException (misleading error).
   logger.info('WAF setup step 2.7: ensuring WAF SLR exists', { organizationId });
   let slrMissing = false; // Track if SLR is confirmed missing and could not be created
+  let slrConfirmedExists = false;
+  
+  const slrIamClient = new IAMClient({ region: 'us-east-1', credentials });
+  
   try {
-    const iamClient = new IAMClient({ region: 'us-east-1', credentials });
-    await iamClient.send(new GetRoleCommand({ RoleName: 'AWSServiceRoleForWAFV2Logging' }));
+    await slrIamClient.send(new GetRoleCommand({ RoleName: 'AWSServiceRoleForWAFV2Logging' }));
     logger.info('WAF SLR already exists');
+    slrConfirmedExists = true;
   } catch (slrErr: any) {
-    if (slrErr.name === 'NoSuchEntityException') {
-      logger.info('WAF SLR does not exist, creating it...');
+    // Handle both NoSuchEntityException and NoSuchEntity (SDK v3 can return either)
+    if (slrErr.name === 'NoSuchEntityException' || slrErr.name === 'NoSuchEntity') {
+      logger.info('WAF SLR does not exist, creating it...', { errorName: slrErr.name });
       try {
         const { CreateServiceLinkedRoleCommand } = await import('@aws-sdk/client-iam');
-        const iamClient = new IAMClient({ region: 'us-east-1', credentials });
-        await iamClient.send(new CreateServiceLinkedRoleCommand({
+        await slrIamClient.send(new CreateServiceLinkedRoleCommand({
           AWSServiceName: 'wafv2.amazonaws.com',
           Description: 'Service-linked role for WAF logging (created by EVO Platform)',
         }));
         logger.info('Created WAF SLR, waiting for propagation...');
-        await new Promise(resolve => setTimeout(resolve, IAM_PROPAGATION_DELAY_MS));
+        // SLR propagation needs more time — 10s minimum
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        slrConfirmedExists = true;
       } catch (createErr: any) {
         if (createErr.name === 'InvalidInputException' && createErr.message?.includes('already exists')) {
           logger.info('WAF SLR already exists (race condition)');
+          slrConfirmedExists = true;
         } else if (isAccessDenied(createErr)) {
           slrMissing = true;
-          logger.warn('Cannot create WAF SLR (missing iam:CreateServiceLinkedRole permission)', {
-            error: createErr.message,
+          logger.error('Cannot create WAF SLR (missing iam:CreateServiceLinkedRole permission)', {
+            error: createErr.message, errorName: createErr.name,
           });
         } else {
           slrMissing = true;
-          logger.warn('Failed to create WAF SLR', { error: createErr.message });
+          logger.error('Failed to create WAF SLR', { error: createErr.message, errorName: createErr.name });
         }
       }
     } else if (isAccessDenied(slrErr)) {
-      logger.warn('Cannot check WAF SLR (missing iam:GetRole permission), continuing anyway...');
+      // Cannot check if SLR exists — try to create it anyway (idempotent if it already exists)
+      logger.warn('Cannot check WAF SLR (AccessDenied on GetRole), attempting to create it anyway...', {
+        error: slrErr.message, errorName: slrErr.name,
+      });
+      try {
+        const { CreateServiceLinkedRoleCommand } = await import('@aws-sdk/client-iam');
+        await slrIamClient.send(new CreateServiceLinkedRoleCommand({
+          AWSServiceName: 'wafv2.amazonaws.com',
+          Description: 'Service-linked role for WAF logging (created by EVO Platform)',
+        }));
+        logger.info('Created WAF SLR (after GetRole AccessDenied), waiting for propagation...');
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        slrConfirmedExists = true;
+      } catch (createErr: any) {
+        if (createErr.name === 'InvalidInputException' && createErr.message?.includes('already exists')) {
+          logger.info('WAF SLR already exists (confirmed via create attempt)');
+          slrConfirmedExists = true;
+        } else {
+          // Could not check or create — log detailed error but continue (SLR might exist)
+          logger.warn('Could not verify or create WAF SLR, will attempt PutLoggingConfiguration anyway', {
+            getError: slrErr.message, createError: createErr.message, createErrorName: createErr.name,
+          });
+        }
+      }
     } else {
-      logger.warn('Failed to check WAF SLR (non-critical)', { error: slrErr.message });
+      logger.warn('Failed to check WAF SLR (unexpected error)', { error: slrErr.message, errorName: slrErr.name });
     }
   }
 
   // If SLR is confirmed missing and could not be created, fail fast instead of
-  // wasting ~25s on 5 retries that will all fail with AccessDeniedException.
+  // wasting retries that will all fail with AccessDeniedException.
   if (slrMissing) {
     throw createPermissionError(
       `The WAF Service-Linked Role (AWSServiceRoleForWAFV2Logging) does not exist in the customer account ` +
@@ -1309,6 +1344,8 @@ async function enableWafMonitoring(ctx: WafMonitoringContext): Promise<SetupResu
       `Please update your CloudFormation stack: ${CF_UPDATE_INSTRUCTION}`
     );
   }
+  
+  logger.info('WAF SLR check complete', { slrConfirmedExists, slrMissing });
 
   // Wait for resource policy propagation before attempting PutLoggingConfiguration
   // AWS WAF requires the resource policy to be fully propagated before it can write to the log group
@@ -1858,6 +1895,163 @@ async function handleTestSetup(
   return success({ steps, region: wafRegion, customerAwsAccountId, logGroupName, destinationArn });
 }
 
+
+/**
+ * Verify real AWS state for a WAF monitoring config and sync DB.
+ * Checks: WAF logging enabled, log group exists, subscription filter exists, destination exists.
+ * If DB says "active" but AWS says otherwise, updates DB status to "error".
+ */
+async function handleVerifyConfig(
+  prisma: ReturnType<typeof getPrismaClient>,
+  organizationId: string,
+  body: { webAclArn?: string; accountId?: string }
+): Promise<APIGatewayProxyResultV2> {
+  const { webAclArn, accountId } = body;
+  if (!webAclArn) return error('Missing webAclArn', 400);
+
+  const config = await prisma.wafMonitoringConfig.findFirst({
+    where: { organization_id: organizationId, web_acl_arn: webAclArn },
+  });
+  if (!config) return error('WAF config not found in DB', 404);
+
+  const effectiveAccountId = accountId || config.aws_account_id;
+  const account = await prisma.awsCredential.findFirst({
+    where: { id: effectiveAccountId, organization_id: organizationId, is_active: true },
+  });
+  if (!account) return error('AWS account not found', 404);
+
+  const arnParts = webAclArn.split(':');
+  const region = arnParts[3] || 'us-east-1';
+  const wafRegion = webAclArn.includes('/global/') ? 'us-east-1' : region;
+  const customerAwsAccountId = account.role_arn?.split(':')[4] || arnParts[4];
+
+  let credentials: any;
+  try {
+    const resolvedCreds = await resolveAwsCredentials(account, wafRegion);
+    credentials = toAwsCredentials(resolvedCreds);
+  } catch (err: any) {
+    return success({ error: `AssumeRole failed: ${err.message}`, dbStatus: config.status });
+  }
+
+  const wafClient = new WAFV2Client({ region: wafRegion, credentials });
+  const logsClient = new CloudWatchLogsClient({ region: wafRegion, credentials });
+  const webAclName = extractWebAclName(webAclArn);
+  const logGroupName = getLogGroupName(webAclName);
+
+  const checks: Record<string, any> = {};
+
+  // 1. WAF logging enabled?
+  try {
+    const loggingResp = await wafClient.send(new GetLoggingConfigurationCommand({ ResourceArn: webAclArn }));
+    const logConfig = loggingResp.LoggingConfiguration;
+    checks.wafLogging = {
+      enabled: !!logConfig,
+      destinations: logConfig?.LogDestinationConfigs || [],
+      hasFilter: !!logConfig?.LoggingFilter,
+    };
+  } catch (err: any) {
+    if (err.name === 'WAFNonexistentItemException') {
+      checks.wafLogging = { enabled: false, error: 'No logging configuration' };
+    } else {
+      checks.wafLogging = { enabled: false, error: `${err.name}: ${err.message}` };
+    }
+  }
+
+  // 2. Log group exists?
+  try {
+    const { DescribeLogGroupsCommand } = await import('@aws-sdk/client-cloudwatch-logs');
+    const lgResp = await logsClient.send(new DescribeLogGroupsCommand({ logGroupNamePrefix: logGroupName, limit: 1 }));
+    const found = lgResp.logGroups?.some(lg => lg.logGroupName === logGroupName);
+    checks.logGroup = { exists: !!found, name: logGroupName };
+  } catch (err: any) {
+    checks.logGroup = { exists: false, error: `${err.name}: ${err.message}` };
+  }
+
+  // 3. Subscription filter exists?
+  try {
+    const sfResp = await logsClient.send(new DescribeSubscriptionFiltersCommand({
+      logGroupName,
+      filterNamePrefix: SUBSCRIPTION_FILTER_NAME,
+    }));
+    const sf = sfResp.subscriptionFilters?.find(f => f.filterName === SUBSCRIPTION_FILTER_NAME);
+    checks.subscriptionFilter = sf ? {
+      exists: true,
+      destinationArn: sf.destinationArn,
+      roleArn: sf.roleArn,
+      filterPattern: sf.filterPattern,
+    } : { exists: false };
+  } catch (err: any) {
+    checks.subscriptionFilter = { exists: false, error: `${err.name}: ${err.message}` };
+  }
+
+  // 4. EVO destination exists in this region?
+  const destExists = await checkDestinationExists(wafRegion);
+  checks.evoDestination = { exists: destExists, region: wafRegion, arn: getDestinationArn(wafRegion) };
+
+  // 5. SLR exists?
+  try {
+    const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+    await iamClient.send(new GetRoleCommand({ RoleName: 'AWSServiceRoleForWAFV2Logging' }));
+    checks.wafSlr = { exists: true };
+  } catch (err: any) {
+    checks.wafSlr = { exists: false, error: `${err.name}: ${err.message}` };
+  }
+
+  // 6. CloudWatch Logs role exists?
+  try {
+    const iamClient = new IAMClient({ region: 'us-east-1', credentials });
+    const roleResp = await iamClient.send(new GetRoleCommand({ RoleName: CLOUDWATCH_LOGS_ROLE_NAME }));
+    const trustDoc = roleResp.Role?.AssumeRolePolicyDocument ? decodeURIComponent(roleResp.Role.AssumeRolePolicyDocument) : '';
+    const regionalSvc = `logs.${wafRegion}.amazonaws.com`;
+    checks.cwLogsRole = {
+      exists: true,
+      hasTrustForRegion: trustDoc.includes(regionalSvc) || trustDoc.includes('logs.amazonaws.com'),
+      region: wafRegion,
+    };
+  } catch (err: any) {
+    checks.cwLogsRole = { exists: false, error: `${err.name}: ${err.message}` };
+  }
+
+  // Determine real status
+  const allOk = checks.wafLogging?.enabled && checks.logGroup?.exists && 
+    checks.subscriptionFilter?.exists && checks.evoDestination?.exists;
+  const realStatus = allOk ? 'active' : 'error';
+
+  // Build issues list
+  const issues: string[] = [];
+  if (!checks.wafLogging?.enabled) issues.push('WAF logging not enabled in AWS');
+  if (!checks.logGroup?.exists) issues.push(`Log group ${logGroupName} not found`);
+  if (!checks.subscriptionFilter?.exists) issues.push('Subscription filter not found');
+  if (!checks.evoDestination?.exists) issues.push(`EVO destination not found in ${wafRegion}`);
+  if (!checks.wafSlr?.exists) issues.push('WAF SLR not found');
+  if (checks.cwLogsRole && !checks.cwLogsRole.hasTrustForRegion) issues.push(`CW Logs role missing trust for ${wafRegion}`);
+
+  // Sync DB if inconsistent
+  let dbUpdated = false;
+  if (config.status === 'active' && realStatus === 'error') {
+    await prisma.wafMonitoringConfig.updateMany({
+      where: { organization_id: organizationId, web_acl_arn: webAclArn },
+      data: { 
+        status: 'error', 
+        status_message: `Verification failed: ${issues.join('; ')}`,
+        is_active: false,
+        updated_at: new Date(),
+      },
+    });
+    dbUpdated = true;
+  }
+
+  return success({
+    webAclArn,
+    region: wafRegion,
+    customerAwsAccountId,
+    dbStatus: config.status,
+    realStatus,
+    dbUpdated,
+    issues,
+    checks,
+  });
+}
 
 /**
  * List available WAFs in customer account
