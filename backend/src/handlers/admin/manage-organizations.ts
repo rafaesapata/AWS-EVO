@@ -20,7 +20,11 @@ import { randomUUID } from 'crypto';
 import { 
   CognitoIdentityProviderClient, 
   ListUsersCommand,
-  AdminUpdateUserAttributesCommand
+  AdminUpdateUserAttributesCommand,
+  AdminCreateUserCommand,
+  AdminSetUserPasswordCommand,
+  AdminAddUserToGroupCommand,
+  AdminDeleteUserCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 import { syncOrganizationLicenses } from '../../lib/license-service.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
@@ -31,7 +35,7 @@ const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-1' })
 const UUID_REGEX = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 interface ManageOrganizationRequest {
-  action: 'list' | 'get' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'suspend' | 'unsuspend' | 'list_licenses' | 'list_seat_assignments' | 'release_seat' | 'update_license_config';
+  action: 'list' | 'get' | 'create' | 'update' | 'delete' | 'toggle_status' | 'list_users' | 'create_user' | 'suspend' | 'unsuspend' | 'list_licenses' | 'list_seat_assignments' | 'release_seat' | 'update_license_config';
   id?: string;
   name?: string;
   slug?: string;
@@ -46,6 +50,11 @@ interface ManageOrganizationRequest {
   auto_sync?: boolean; // Auto sync de licença
   trigger_sync?: boolean; // Disparar sincronização após atualizar config
   contact_email?: string; // Email de contato da organização
+  // Create user fields
+  email?: string; // Email do novo usuário
+  full_name?: string; // Nome completo do novo usuário
+  role?: string; // Role do novo usuário
+  send_invite?: boolean; // Enviar convite por email
 }
 
 function getOriginFromEvent(event: AuthorizedEvent): string {
@@ -622,6 +631,211 @@ export async function handler(
         });
 
         return success(usersWithEmail, 200, origin);
+      }
+
+      case 'create_user': {
+        if (!body.id) {
+          return badRequest('Organization ID is required', undefined, origin);
+        }
+        if (!body.email || !body.full_name || !body.role) {
+          return badRequest('email, full_name and role are required', undefined, origin);
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(body.email)) {
+          return badRequest('Invalid email format', undefined, origin);
+        }
+
+        // Validate role
+        const allowedRoles = ['user', 'admin', 'org_admin', 'viewer', 'auditor', 'billing_admin', 'security_admin'];
+        if (!allowedRoles.includes(body.role)) {
+          return badRequest(`Invalid role. Allowed: ${allowedRoles.join(', ')}`, undefined, origin);
+        }
+
+        // Verify organization exists
+        const orgForUser = await prisma.organization.findUnique({
+          where: { id: body.id }
+        });
+        if (!orgForUser) {
+          return badRequest('Organization not found', undefined, origin);
+        }
+
+        // Check if organization is suspended
+        if ((orgForUser as any).status === 'suspended') {
+          return badRequest('Cannot create users in a suspended organization', undefined, origin);
+        }
+
+        // Check if email already exists in profiles
+        const existingProfile = await prisma.profile.findFirst({
+          where: { email: body.email }
+        });
+        if (existingProfile) {
+          return badRequest('A user with this email already exists', undefined, origin);
+        }
+
+        // Check license user limit
+        const userCount = await prisma.profile.count({ where: { organization_id: body.id } });
+        const activeLicense = await prisma.license.findFirst({
+          where: { organization_id: body.id, is_active: true },
+          orderBy: { created_at: 'desc' }
+        });
+        if (activeLicense && userCount >= (activeLicense.max_users ?? 0)) {
+          return badRequest('User limit reached for this organization license', undefined, origin);
+        }
+
+        const userPoolId = process.env.COGNITO_USER_POOL_ID;
+        if (!userPoolId) {
+          return error('Cognito not configured', 500, undefined, origin);
+        }
+
+        // Generate secure password
+        const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const lower = 'abcdefghijklmnopqrstuvwxyz';
+        const numbers = '0123456789';
+        const special = '!@#$%^&*';
+        const all = upper + lower + numbers + special;
+        const { randomInt } = await import('crypto');
+        let tempPassword = '';
+        tempPassword += upper[randomInt(upper.length)];
+        tempPassword += lower[randomInt(lower.length)];
+        tempPassword += numbers[randomInt(numbers.length)];
+        tempPassword += special[randomInt(special.length)];
+        for (let i = 4; i < 16; i++) {
+          tempPassword += all[randomInt(all.length)];
+        }
+        const arr = tempPassword.split('');
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = randomInt(i + 1);
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        tempPassword = arr.join('');
+
+        let cognitoUserId: string | undefined;
+        const sendInvite = body.send_invite !== false; // default true
+
+        try {
+          // STEP 1: Create Cognito user
+          logger.info('Creating Cognito user for organization', { email: body.email, organizationId: body.id });
+
+          const cognitoResponse = await cognitoClient.send(new AdminCreateUserCommand({
+            UserPoolId: userPoolId,
+            Username: body.email,
+            UserAttributes: [
+              { Name: 'email', Value: body.email },
+              { Name: 'email_verified', Value: 'true' },
+              { Name: 'name', Value: body.full_name },
+              { Name: 'custom:organization_id', Value: body.id },
+              { Name: 'custom:organization_name', Value: orgForUser.name },
+              { Name: 'custom:roles', Value: JSON.stringify([body.role]) },
+              { Name: 'custom:tenant_id', Value: body.id }
+            ],
+            TemporaryPassword: tempPassword,
+            MessageAction: sendInvite ? undefined : 'SUPPRESS'
+          }));
+
+          cognitoUserId = cognitoResponse.User?.Username;
+          if (!cognitoUserId) {
+            throw new Error('Cognito user creation succeeded but no Username returned');
+          }
+
+          logger.info('Cognito user created', { email: body.email, cognitoUserId });
+
+          // Try to add to Cognito group (optional, don't fail)
+          const groupName = `${body.id}-${body.role}`;
+          try {
+            await cognitoClient.send(new AdminAddUserToGroupCommand({
+              UserPoolId: userPoolId,
+              Username: body.email,
+              GroupName: groupName
+            }));
+          } catch (groupErr) {
+            logger.warn('Could not add user to Cognito group', { groupName, error: groupErr });
+          }
+
+          // STEP 2: Create profile in database
+          const newProfile = await prisma.$transaction(async (tx) => {
+            const profile = await tx.profile.create({
+              data: {
+                user_id: cognitoUserId!,
+                email: body.email!,
+                full_name: body.full_name!,
+                organization_id: body.id!,
+                role: body.role!
+              }
+            });
+
+            // Audit log
+            await tx.auditLog.create({
+              data: {
+                organization_id: body.id!,
+                user_id: user.sub || user.id || 'system',
+                action: 'CREATE_USER',
+                resource_type: 'USER',
+                resource_id: cognitoUserId!,
+                details: {
+                  email: body.email,
+                  full_name: body.full_name,
+                  role: body.role,
+                  created_by: user.email || user.sub,
+                  invite_sent: sendInvite
+                },
+                ip_address: getIpFromEvent(event),
+                user_agent: getUserAgentFromEvent(event)
+              }
+            });
+
+            return profile;
+          });
+
+          logger.info('User created successfully for organization', {
+            email: body.email,
+            organizationId: body.id,
+            profileId: newProfile.id,
+            cognitoUserId,
+            createdBy: user.sub || user.id
+          });
+
+          return success({
+            id: newProfile.id,
+            user_id: cognitoUserId,
+            email: body.email,
+            full_name: body.full_name,
+            role: body.role,
+            created_at: newProfile.created_at,
+            invite_sent: sendInvite
+          }, 201, origin);
+
+        } catch (createErr: any) {
+          logger.error('Failed to create user for organization', {
+            email: body.email,
+            organizationId: body.id,
+            error: createErr
+          });
+
+          // Rollback: delete Cognito user if DB failed
+          if (cognitoUserId) {
+            try {
+              await cognitoClient.send(new AdminDeleteUserCommand({
+                UserPoolId: userPoolId,
+                Username: body.email!
+              }));
+              logger.info('Cognito user rolled back', { email: body.email });
+            } catch (rollbackErr) {
+              logger.error('CRITICAL: Cognito rollback failed, manual cleanup needed', {
+                email: body.email,
+                cognitoUserId,
+                error: rollbackErr
+              });
+            }
+          }
+
+          const errMsg = createErr.message || String(createErr);
+          if (errMsg.includes('UsernameExistsException')) {
+            return badRequest('A user with this email already exists in the authentication system', undefined, origin);
+          }
+          return error('Failed to create user. Please try again.', 500, undefined, origin);
+        }
       }
 
       case 'suspend': {

@@ -1,0 +1,91 @@
+name: Deploy by Tag
+
+# Deploy é disparado por tags:
+#   sandbox-*    → deploy no ambiente Sandbox (branch sandbox)
+#   production-* → deploy no ambiente Production (branch production)
+#
+# Fluxo: Tag criada → GitHub Actions faz push para o branch do ambiente → CodePipeline detecta e faz deploy
+#
+# Uso:
+#   git tag sandbox-v1.2.3 && git push origin sandbox-v1.2.3
+#   git tag production-v1.2.3 && git push origin production-v1.2.3
+
+on:
+  push:
+    tags:
+      - 'sandbox-*'
+      - 'production-*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Environment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Determine environment from tag
+        id: env
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          if [[ "$TAG" == sandbox-* ]]; then
+            echo "environment=sandbox" >> $GITHUB_OUTPUT
+            echo "branch=sandbox" >> $GITHUB_OUTPUT
+            echo "🏖️ Deploying to SANDBOX from tag: $TAG"
+          elif [[ "$TAG" == production-* ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "branch=production" >> $GITHUB_OUTPUT
+            echo "🚀 Deploying to PRODUCTION from tag: $TAG"
+          else
+            echo "❌ Unknown tag pattern: $TAG"
+            exit 1
+          fi
+
+      - name: Checkout code at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Push to target branch
+        run: |
+          BRANCH="${{ steps.env.outputs.branch }}"
+          TAG="${{ steps.env.outputs.tag }}"
+          ENV="${{ steps.env.outputs.environment }}"
+
+          echo "=== Deploying $TAG to $ENV (branch: $BRANCH) ==="
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Force push the tagged commit to the target branch
+          # This triggers CodePipeline which monitors the branch
+          git push origin HEAD:refs/heads/$BRANCH --force
+
+          echo "✅ Pushed to $BRANCH — CodePipeline will handle the deploy"
+
+      - name: Summary
+        run: |
+          TAG="${{ steps.env.outputs.tag }}"
+          ENV="${{ steps.env.outputs.environment }}"
+          BRANCH="${{ steps.env.outputs.branch }}"
+          SHA="${{ github.sha }}"
+
+          echo "## 🚀 Deploy Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tag** | \`$TAG\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | \`$ENV\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch** | \`$BRANCH\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${SHA:0:8}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "CodePipeline will now build and deploy automatically." >> $GITHUB_STEP_SUMMARY

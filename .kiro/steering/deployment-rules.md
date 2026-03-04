@@ -48,6 +48,27 @@ if (typeof globalThis.crypto === 'undefined') {
 }
 ```
 
+## Acesso via AWS SSO
+
+Operações locais (scripts, SAM deploy local, verificações) requerem sessão SSO ativa:
+
+```bash
+# Login no sandbox
+aws sso login --profile EVO_SANDBOX
+
+# Login na produção
+aws sso login --profile EVO_PRODUCTION
+
+# Verificar sessão ativa
+aws sts get-caller-identity --profile EVO_SANDBOX
+```
+
+- `EVO_SANDBOX` é obrigatório para qualquer operação local no sandbox
+- `EVO_PRODUCTION` é obrigatório para operações na produção
+- O CI/CD pipeline usa IAM Role própria e **não depende de SSO** para deploy automático
+- `sam deploy` local para sandbox: `sam deploy --config-env sandbox --profile EVO_SANDBOX`
+- Scripts `scripts/setup-sandbox-*.sh` e `scripts/verify-sandbox.sh` requerem `--profile EVO_SANDBOX` ou `AWS_PROFILE=EVO_SANDBOX`
+
 ## Lambdas Críticas
 - 🔴 Onboarding: `save-aws-credentials`, `validate-aws-credentials`, `save-azure-credentials`, `validate-azure-credentials`
 - 🟠 Core: `security-scan`, `compliance-scan`, `mfa-enroll`, `mfa-verify-login`
@@ -62,3 +83,4 @@ if (typeof globalThis.crypto === 'undefined') {
 | `Azure SDK not installed` | Layer sem Azure SDK | Usar layer 91+ |
 | `crypto is not defined` | Sem crypto polyfill | Adicionar polyfill (ver acima) |
 | `Cannot find module 'jsonwebtoken'` | Layer incompleta | Usar layer 91+ |
+| `ExpiredTokenException` | Sessão SSO expirada | Executar `aws sso login --profile EVO_SANDBOX` |

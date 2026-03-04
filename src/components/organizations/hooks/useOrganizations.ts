@@ -85,6 +85,45 @@ export function useOrganizationLicenses(organizationId: string | undefined) {
   });
 }
 
+// Create user in organization
+export function useCreateOrganizationUser(organizationId: string | undefined, onSuccess: () => void) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: async (data: { email: string; full_name: string; role: string; send_invite: boolean }) => {
+      if (!organizationId) throw new Error('Organization ID is required');
+
+      const response = await apiClient.invoke('manage-organizations', {
+        body: { action: 'create_user', id: organizationId, ...data }
+      });
+
+      if ('error' in response && response.error) {
+        throw new Error(getErrorMessage(response.error));
+      }
+
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization-users', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      toast({
+        title: t('organizations.userCreated', 'Usuário criado'),
+        description: t('organizations.userCreatedDesc', 'O usuário foi criado e vinculado à organização com sucesso.'),
+      });
+      onSuccess();
+    },
+    onError: (err: Error) => {
+      toast({
+        title: t('organizations.userCreateError', 'Erro ao criar usuário'),
+        description: err.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
 // Fetch seat assignments
 export function useSeatAssignments(organizationId: string | undefined, enabled: boolean) {
   return useQuery({

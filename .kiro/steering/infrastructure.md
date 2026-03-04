@@ -20,6 +20,52 @@ inclusion: manual
 
 ---
 
+## Acesso via AWS SSO
+
+### Configuração do `~/.aws/config`
+
+```ini
+[profile EVO_SANDBOX]
+sso_start_url = https://nuevacore.awsapps.com/start
+sso_region = us-east-1
+sso_account_id = 971354623291
+sso_role_name = AdministratorAccess
+region = us-east-1
+
+[profile EVO_PRODUCTION]
+sso_start_url = https://nuevacore.awsapps.com/start
+sso_region = us-east-1
+sso_account_id = 523115032346
+sso_role_name = AdministratorAccess
+region = us-east-1
+```
+
+### Comandos
+
+```bash
+# Login
+aws sso login --profile EVO_SANDBOX
+aws sso login --profile EVO_PRODUCTION
+
+# Verificar sessão ativa
+aws sts get-caller-identity --profile EVO_SANDBOX
+aws sts get-caller-identity --profile EVO_PRODUCTION
+```
+
+### Uso em Scripts
+
+Todos os scripts de setup e verificação aceitam `--profile` ou a variável `AWS_PROFILE`:
+
+```bash
+# Via variável de ambiente
+AWS_PROFILE=EVO_SANDBOX ./scripts/verify-sandbox.sh
+
+# Via parâmetro (quando suportado)
+./scripts/verify-sandbox.sh --profile EVO_SANDBOX
+```
+
+---
+
 ## SANDBOX (971354623291)
 
 ### Resource IDs
@@ -112,20 +158,22 @@ postgresql://evoadmin:<PASSWORD>@evo-uds-v3-sandbox-postgres.c070y4ceohf7.us-eas
 
 ---
 
-## Diferenças Sandbox vs Produção
+## Diferenças Esperadas Sandbox vs Produção
 
-| Configuração | Sandbox | Produção |
-|-------------|---------|----------|
-| **RDS Instance** | `db.t3.micro` | `db.t3.medium` |
-| **RDS MultiAZ** | Desabilitado | Habilitado |
-| **RDS PubliclyAccessible** | `true` (acesso direto) | `false` (via bastion/VPC) |
-| **NAT Gateways** | 1 | 2 |
-| **CloudFront PriceClass** | `PriceClass_100` (NA + EU) | `PriceClass_All` |
-| **WAF** | Desabilitado | Habilitado |
-| **Performance Insights** | Retenção padrão (7 dias) | Retenção estendida |
-| **CloudTrail detalhado** | Desabilitado | Habilitado |
-| **RDS Backup Retention** | 7 dias | 7 dias |
-| **RDS Storage** | gp3, 20GB (auto-scaling até 100GB) | gp3, 20GB (auto-scaling até 100GB) |
+Estas diferenças são **intencionais** para controle de custo. O script `verify-sandbox.sh --compare` ignora estas diferenças.
+
+| Configuração | Sandbox | Produção | Justificativa |
+|-------------|---------|----------|---------------|
+| **RDS Instance** | `db.t3.micro` | `db.t3.medium` | Custo: sandbox não precisa de performance |
+| **RDS MultiAZ** | Desabilitado | Habilitado | Custo: sandbox não precisa de HA |
+| **RDS PubliclyAccessible** | `true` (acesso direto) | `false` (via bastion/VPC) | Conveniência: acesso direto para debug |
+| **NAT Gateways** | 1 | 2 | Custo: sandbox não precisa de redundância |
+| **CloudFront PriceClass** | `PriceClass_100` (NA + EU) | `PriceClass_All` | Custo: sandbox só precisa NA+EU |
+| **WAF** | Desabilitado | Habilitado | Custo: sandbox não precisa de WAF |
+| **Performance Insights** | Retenção padrão (7 dias) | Retenção estendida | Custo: retenção padrão suficiente |
+| **CloudTrail detalhado** | Desabilitado | Habilitado | Custo: não necessário em sandbox |
+| **RDS Backup Retention** | 7 dias | 7 dias | Igual |
+| **RDS Storage** | gp3, 20GB (auto-scaling até 100GB) | gp3, 20GB (auto-scaling até 100GB) | Igual |
 
 ---
 
