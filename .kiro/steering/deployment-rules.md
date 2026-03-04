@@ -8,22 +8,51 @@ inclusion: always
 
 ## Deploy por Tags (GitHub Actions → CodePipeline)
 
-O deploy é disparado por tags Git. O GitHub Actions workflow (`deploy-by-tag.yml`) detecta a tag e faz push para o branch correto, que dispara o CodePipeline.
+O deploy é disparado **exclusivamente por tags Git**. Nunca faça push direto nos branches `sandbox` ou `production` — eles são gerenciados automaticamente pelo workflow.
+
+### Arquitetura do Fluxo
+
+```
+Developer cria tag → GitHub Actions (deploy-by-tag.yml) → Force-push para branch → CodePipeline detecta → CodeBuild executa buildspec-sam.yml → SAM build + deploy
+```
+
+1. Developer cria uma tag no commit desejado (qualquer branch, geralmente `production`)
+2. `git push origin <tag>` dispara o GitHub Actions workflow `.github/workflows/deploy-by-tag.yml`
+3. O workflow identifica o ambiente pela tag (`sandbox-*` ou `production-*`)
+4. Faz `git push --force` do commit taggeado para o branch correspondente (`sandbox` ou `production`)
+5. O CodePipeline na AWS (que monitora o branch via CodeStar Connection) detecta a mudança
+6. CodeBuild executa `cicd/buildspec-sam.yml` com a estratégia de deploy (FULL_SAM, FRONTEND_ONLY, ou SKIP)
+
+### Como Fazer Deploy
 
 ```bash
-# Deploy para Sandbox
+# 1. Desenvolva normalmente no branch production (ou qualquer branch)
+git add -A && git commit -m "feat: minha feature"
+git push origin production
+
+# 2. Quando quiser deployar no Sandbox (testar primeiro)
 git tag sandbox-v1.2.3
 git push origin sandbox-v1.2.3
 
-# Deploy para Production
+# 3. Depois de validar no Sandbox, deployar em Production
 git tag production-v1.2.3
 git push origin production-v1.2.3
 ```
 
-| Tag Pattern | Ambiente | Branch Target |
-|-------------|----------|---------------|
-| `sandbox-*` | Sandbox | `sandbox` |
-| `production-*` | Production | `production` |
+### Convenção de Nomes de Tags
+
+| Tag Pattern | Ambiente | Branch Target | Exemplo |
+|-------------|----------|---------------|---------|
+| `sandbox-*` | Sandbox (971354623291) | `sandbox` | `sandbox-v1.2.3`, `sandbox-hotfix-auth` |
+| `production-*` | Production (523115032346) | `production` | `production-v1.2.3`, `production-v1.2.3-rc1` |
+
+### Regras Importantes
+
+- **NUNCA faça push direto** nos branches `sandbox` ou `production` — use tags
+- **Ambos os branches devem estar alinhados** — se divergirem, faça merge antes de tagear
+- O workflow usa `--force` no push, então a tag sempre sobrescreve o branch
+- Tags são imutáveis no Git — se precisar re-deployar o mesmo commit, crie uma nova tag (ex: `sandbox-v1.2.3-retry`)
+- O CodePipeline existente continua funcionando normalmente — o workflow apenas automatiza o push para o branch
 
 ## Estratégia de Deploy (SEMPRE FULL_SAM para backend)
 
