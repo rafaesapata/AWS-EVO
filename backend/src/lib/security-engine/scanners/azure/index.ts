@@ -30,7 +30,71 @@ import { functionsScanner } from './functions/index.js';
 import { cosmosDbScanner } from './cosmos-db/index.js';
 import { redisScanner } from './redis/index.js';
 import { defenderScanner } from './defender/index.js';
+import { logger } from '../../../logging.js';
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding } from './types.js';
+
+// Per-scanner timeout configuration (ms). Identity scanners get more time due to pagination.
+const AZURE_SCANNER_TIMEOUT_MS: Record<string, number> = {
+  'azure-entra-id': 120_000,      // 2min — Graph API pagination can be slow
+  'azure-network-security': 90_000, // 1.5min — many NSGs in enterprise
+  'azure-defender': 90_000,         // 1.5min — assessments can be large
+  'azure-key-vault': 90_000,       // 1.5min — data plane calls per vault
+  'azure-virtual-machines': 90_000, // 1.5min — extensions per VM
+  'azure-storage-accounts': 90_000, // 1.5min — containers per account
+  'azure-aks': 60_000,
+  'azure-app-service': 60_000,
+  'azure-functions': 60_000,
+  'azure-cosmos-db': 60_000,
+  'azure-redis': 60_000,
+  'azure-sql-database': 60_000,
+};
+
+const DEFAULT_SCANNER_TIMEOUT_MS = 60_000;
+
+/**
+ * Wraps a scanner execution with a timeout. If the scanner exceeds the timeout,
+ * it returns a partial result with a timeout error instead of blocking indefinitely.
+ */
+async function withScannerTimeout(
+  scanFn: () => Promise<AzureScanResult>,
+  scannerName: string,
+  timeoutMs: number
+): Promise<AzureScanResult> {
+  return new Promise<AzureScanResult>((resolve) => {
+    const timer = setTimeout(() => {
+      logger.warn(`Azure scanner ${scannerName} timed out after ${timeoutMs}ms`);
+      resolve({
+        findings: [],
+        resourcesScanned: 0,
+        errors: [{
+          scanner: scannerName,
+          message: `Scanner timed out after ${timeoutMs}ms`,
+          recoverable: true,
+        }],
+        scanDurationMs: timeoutMs,
+      });
+    }, timeoutMs);
+
+    scanFn()
+      .then(result => {
+        clearTimeout(timer);
+        resolve(result);
+      })
+      .catch(err => {
+        clearTimeout(timer);
+        resolve({
+          findings: [],
+          resourcesScanned: 0,
+          errors: [{
+            scanner: scannerName,
+            message: err instanceof Error ? err.message : String(err),
+            recoverable: true,
+          }],
+          scanDurationMs: 0,
+        });
+      });
+  });
+}
 
 // Export all scanners - ordered by priority (Identity/IAM first, then network, then resources)
 export const azureScanners: AzureScanner[] = [
@@ -122,11 +186,18 @@ export async function runAllAzureScanners(context: AzureScanContext): Promise<{
 
   // Run scanners in parallel for better performance
   // Each scanner is isolated - failures don't affect others
+  // Each scanner has an individual timeout to prevent indefinite blocking
   const results = await Promise.allSettled(
     azureScanners.map(async scanner => {
+      const timeoutMs = AZURE_SCANNER_TIMEOUT_MS[scanner.name] || DEFAULT_SCANNER_TIMEOUT_MS;
       try {
-        const result = await scanner.scan(context);
-        return { name: scanner.name, result, success: true };
+        const result = await withScannerTimeout(
+          () => scanner.scan(context),
+          scanner.name,
+          timeoutMs
+        );
+        const hasErrors = result.errors.length > 0;
+        return { name: scanner.name, result, success: !hasErrors };
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         return { 

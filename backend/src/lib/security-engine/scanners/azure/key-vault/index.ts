@@ -133,7 +133,7 @@ interface DiagnosticSettings {
   };
 }
 
-// Generic Azure API fetch helper with caching and rate limiting
+// Generic Azure API fetch helper with caching, rate limiting, and pagination
 async function fetchAzureResource<T>(
   context: AzureScanContext,
   url: string,
@@ -143,26 +143,37 @@ async function fetchAzureResource<T>(
   const cache = getGlobalCache();
   
   return cache.getOrFetch(cacheKey, async () => {
+    const items: T[] = [];
+    let currentUrl: string | null = url;
+    let pageCount = 0;
+    const MAX_PAGES = 20; // Safety limit
+    
     try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, `fetch-${cacheKey}`);
+      while (currentUrl && pageCount < MAX_PAGES) {
+        pageCount++;
+        const response = await rateLimitedFetch(currentUrl, {
+          headers: {
+            'Authorization': `Bearer ${context.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }, `fetch-${cacheKey}`);
 
-      if (!response.ok) {
-        if (throwOnError) {
-          throw new Error(`Failed to fetch resource: ${response.status} ${response.statusText}`);
+        if (!response.ok) {
+          if (throwOnError) {
+            throw new Error(`Failed to fetch resource: ${response.status} ${response.statusText}`);
+          }
+          break;
         }
-        return [];
-      }
 
-      const data = await response.json() as { value?: T[] };
-      return data.value || [];
+        const data = await response.json() as { value?: T[]; nextLink?: string };
+        items.push(...(data.value || []));
+        currentUrl = data.nextLink || null;
+      }
+      
+      return items;
     } catch (err) {
       if (throwOnError) throw err;
-      return [];
+      return items.length > 0 ? items : [];
     }
   });
 }
@@ -246,16 +257,16 @@ export const keyVaultScanner: AzureScanner = {
         // Check 3: Soft Delete Retention
         if (props.softDeleteRetentionInDays && props.softDeleteRetentionInDays < MIN_SOFT_DELETE_RETENTION_DAYS) {
           findings.push({
-            severity: 'MEDIUM',
+            severity: 'CRITICAL',
             title: 'Key Vault Short Retention Period',
-            description: `Key Vault ${vault.name} has soft delete retention of only ${props.softDeleteRetentionInDays} days`,
+            description: `Key Vault ${vault.name} has soft delete retention of only ${props.softDeleteRetentionInDays} days. Loss of encryption keys (CMK) can mean permanent data loss.`,
             resourceType: 'Microsoft.KeyVault/vaults',
             resourceId: vault.id,
             resourceName: vault.name,
             resourceGroup,
             region: vault.location,
             remediation: `Increase soft delete retention to at least ${MIN_SOFT_DELETE_RETENTION_DAYS} days`,
-            complianceFrameworks: ['CIS Azure 1.4'],
+            complianceFrameworks: ['CIS Azure 1.4', 'PCI-DSS', 'NIST 800-53'],
           });
         }
 

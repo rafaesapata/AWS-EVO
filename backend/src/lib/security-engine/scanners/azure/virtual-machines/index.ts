@@ -36,12 +36,12 @@ interface AzureVM {
     storageProfile?: {
       osDisk?: {
         encryptionSettings?: { enabled?: boolean };
-        managedDisk?: { id?: string };
+        managedDisk?: { id?: string; diskEncryptionSet?: { id?: string } };
         osType?: string;
       };
       dataDisks?: Array<{
         encryptionSettings?: { enabled?: boolean };
-        managedDisk?: { id?: string };
+        managedDisk?: { id?: string; diskEncryptionSet?: { id?: string } };
         name?: string;
       }>;
     };
@@ -149,21 +149,30 @@ async function fetchVMs(context: AzureScanContext): Promise<AzureVM[]> {
   const cacheKey = CacheKeys.vms(context.subscriptionId);
   
   return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-09-01`;
+    const vms: AzureVM[] = [];
+    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-09-01`;
+    let pageCount = 0;
+    const MAX_PAGES = 20;
     
-    const response = await rateLimitedFetch(url, {
-      headers: {
-        'Authorization': `Bearer ${context.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    }, 'fetchVMs');
+    while (url && pageCount < MAX_PAGES) {
+      pageCount++;
+      const response = await rateLimitedFetch(url, {
+        headers: {
+          'Authorization': `Bearer ${context.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }, 'fetchVMs');
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch VMs: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch VMs: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json() as { value?: AzureVM[]; nextLink?: string };
+      vms.push(...(data.value || []));
+      url = data.nextLink || null;
     }
-
-    const data = await response.json() as { value?: AzureVM[] };
-    return data.value || [];
+    
+    return vms;
   });
 }
 
@@ -267,27 +276,33 @@ function checkDiskEncryption(vmCtx: VMContext): AzureSecurityFinding[] {
   const { vm } = vmCtx;
   const encryptionAtHost = vm.properties?.securityProfile?.encryptionAtHost;
   
-  // OS Disk
+  // OS Disk — check ADE (legacy), encryption at host, AND managed disk encryption set
   const osDisk = vm.properties?.storageProfile?.osDisk;
-  if (!osDisk?.encryptionSettings?.enabled && !encryptionAtHost) {
+  const osDiskHasADE = osDisk?.encryptionSettings?.enabled;
+  const osDiskHasDES = osDisk?.managedDisk?.diskEncryptionSet?.id;
+  
+  if (!osDiskHasADE && !encryptionAtHost && !osDiskHasDES) {
     findings.push(createVMFinding(vmCtx, {
       severity: 'HIGH',
       title: 'VM OS Disk Not Encrypted',
-      description: `Virtual machine ${vm.name} has an unencrypted OS disk. Disk encryption protects data at rest.`,
-      remediation: 'Enable Azure Disk Encryption (ADE) or encryption at host for the VM',
+      description: `Virtual machine ${vm.name} has an unencrypted OS disk. No ADE, encryption at host, or Disk Encryption Set detected.`,
+      remediation: 'Enable Azure Disk Encryption (ADE), encryption at host, or configure a Disk Encryption Set with CMK. Run: az vm encryption enable --resource-group <rg> --name <vm> --disk-encryption-keyvault <vault>',
       complianceFrameworks: ['CIS Azure 1.4', 'LGPD', 'PCI-DSS', 'NIST 800-53'],
     }));
   }
 
-  // Data Disks
+  // Data Disks — same multi-method check
   const dataDisks = vm.properties?.storageProfile?.dataDisks || [];
   for (const disk of dataDisks) {
-    if (!disk.encryptionSettings?.enabled && !encryptionAtHost) {
+    const dataDiskHasADE = disk.encryptionSettings?.enabled;
+    const dataDiskHasDES = disk.managedDisk?.diskEncryptionSet?.id;
+    
+    if (!dataDiskHasADE && !encryptionAtHost && !dataDiskHasDES) {
       findings.push(createVMFinding(vmCtx, {
         severity: 'HIGH',
         title: 'VM Data Disk Not Encrypted',
         description: `Virtual machine ${vm.name} has unencrypted data disk: ${disk.name || 'unnamed'}`,
-        remediation: 'Enable Azure Disk Encryption for all data disks',
+        remediation: 'Enable Azure Disk Encryption for all data disks or configure a Disk Encryption Set',
         complianceFrameworks: ['CIS Azure 1.4', 'LGPD', 'PCI-DSS'],
         metadata: { diskName: disk.name },
       }));

@@ -95,7 +95,15 @@ interface SecurityDefaults {
   isEnabled: boolean;
 }
 
-// Helper to make Graph API calls with rate limiting and caching
+/**
+ * Helper to make Graph API calls with rate limiting and caching.
+ * 
+ * Error handling strategy:
+ * - 401/403: Returns null (permission denied — expected for some tenants)
+ * - Network/timeout errors: Throws to let the caller decide (pagination can retry or stop)
+ * - JSON parse errors: Logs warning and returns null
+ * - Other HTTP errors: Throws with status code
+ */
 async function graphApiCall<T>(accessToken: string, endpoint: string, useBeta = false, cacheKey?: string): Promise<T | null> {
   const baseUrl = useBeta ? GRAPH_BETA : GRAPH_API;
   const cache = getGlobalCache();
@@ -114,11 +122,14 @@ async function graphApiCall<T>(accessToken: string, endpoint: string, useBeta = 
       },
     }, `graphApi:${endpoint}`);
     
+    // Permission denied — expected for some tenants/scopes, return null silently
+    if (response.status === 403 || response.status === 401) {
+      logger.debug('Graph API permission denied', { endpoint, status: response.status });
+      return null;
+    }
+    
     if (!response.ok) {
-      if (response.status === 403 || response.status === 401) {
-        return null; // Permission denied - skip this check
-      }
-      throw new Error(`Graph API error: ${response.status}`);
+      throw new Error(`Graph API error: ${response.status} on ${endpoint}`);
     }
     
     const data = await response.json() as T;
@@ -129,7 +140,20 @@ async function graphApiCall<T>(accessToken: string, endpoint: string, useBeta = 
     }
     
     return data;
-  } catch (err) {
+  } catch (err: unknown) {
+    // Propagate network/timeout errors so callers (pagination, scanner) can handle them
+    if (err instanceof Error && (
+      err.message.includes('ETIMEDOUT') ||
+      err.message.includes('ECONNRESET') ||
+      err.message.includes('ECONNREFUSED') ||
+      err.message.includes('AbortError') ||
+      err.message.includes('timed out') ||
+      err.message.startsWith('Graph API error:')
+    )) {
+      throw err;
+    }
+    // Non-critical errors (e.g. unexpected JSON) — log and return null
+    logger.warn('Graph API call failed with non-critical error', { endpoint, error: (err as Error).message });
     return null;
   }
 }
@@ -142,12 +166,46 @@ async function fetchUsers(accessToken: string, tenantId: string): Promise<User[]
   return cache.getOrFetch(cacheKey, async () => {
     const users: User[] = [];
     let nextLink: string | null = '/users?$select=id,displayName,userPrincipalName,userType,accountEnabled,createdDateTime&$top=999';
+    let pageCount = 0;
+    const MAX_PAGES = 50; // Safety limit to prevent infinite loops
     
-    while (nextLink) {
-      const response: GraphApiPagedResponse<User> | null = await graphApiCall<GraphApiPagedResponse<User>>(accessToken, nextLink);
-      if (!response) break;
-      users.push(...(response.value || []));
-      nextLink = response['@odata.nextLink']?.replace(GRAPH_API, '') || null;
+    while (nextLink && pageCount < MAX_PAGES) {
+      pageCount++;
+      try {
+        const response: GraphApiPagedResponse<User> | null = await graphApiCall<GraphApiPagedResponse<User>>(accessToken, nextLink);
+        if (!response) {
+          // graphApiCall returned null = permission denied. Stop pagination gracefully.
+          logger.warn('fetchUsers: Graph API returned null (permission denied), stopping pagination', { tenantId, pageCount, usersCollected: users.length });
+          break;
+        }
+        users.push(...(response.value || []));
+        
+        // Handle nextLink: Azure returns absolute URL, convert to relative
+        const rawNextLink: string | undefined = response['@odata.nextLink'];
+        if (rawNextLink) {
+          // Strip any Graph API base URL variant (with or without trailing slash)
+          let parsed: string = rawNextLink
+            .replace('https://graph.microsoft.com/v1.0/', '/')
+            .replace('https://graph.microsoft.com/v1.0', '/')
+            .replace(GRAPH_API + '/', '/')
+            .replace(GRAPH_API, '/');
+          // Ensure it starts with /
+          if (!parsed.startsWith('/')) parsed = '/' + parsed;
+          nextLink = parsed;
+        } else {
+          nextLink = null;
+        }
+      } catch (err) {
+        // Network/timeout error during pagination — log and return what we have so far
+        logger.warn('fetchUsers: Error during pagination, returning partial results', { 
+          tenantId, pageCount, usersCollected: users.length, error: (err as Error).message 
+        });
+        break;
+      }
+    }
+    
+    if (pageCount >= MAX_PAGES) {
+      logger.warn('fetchUsers: Hit max page limit', { tenantId, usersCollected: users.length });
     }
     
     return users;
@@ -263,7 +321,17 @@ export const entraIdScanner: AzureScanner = {
     if (!graphToken) {
       logger.info('Entra ID scanner skipped: no Graph API token provided (accessToken is scoped for management.azure.com)', { tenantId });
       return {
-        findings: [],
+        findings: [{
+          severity: 'HIGH',
+          title: 'Entra ID Scanner Skipped — No Graph API Token',
+          description: 'The Entra ID identity scanner could not run because no Microsoft Graph API token was provided. Identity security checks (MFA, Conditional Access, PIM, privileged roles) were not performed. This does NOT mean your identity configuration is secure.',
+          resourceType: 'Microsoft.Directory/tenants',
+          resourceId: `/tenants/${tenantId}`,
+          resourceName: 'Entra ID Scanner',
+          remediation: 'Configure Azure credentials with Microsoft Graph API scope (https://graph.microsoft.com/.default) to enable identity scanning.',
+          complianceFrameworks: ['CIS Azure 1.4', 'NIST 800-53'],
+          metadata: { reason: 'missing_graph_token' },
+        }],
         resourcesScanned: 0,
         errors: [{
           scanner: 'azure-entra-id',

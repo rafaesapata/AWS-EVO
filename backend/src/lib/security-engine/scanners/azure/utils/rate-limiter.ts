@@ -25,6 +25,8 @@ export class AzureRateLimiter {
   private config: RateLimiterConfig;
   private requestTimestamps: number[] = [];
   private retryAfterMs = 0;
+  /** Queue to serialize slot acquisition and prevent race conditions */
+  private pendingSlot: Promise<void> = Promise.resolve();
 
   constructor(config: Partial<RateLimiterConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -91,31 +93,41 @@ export class AzureRateLimiter {
   }
 
   /**
-   * Wait for an available request slot
+   * Wait for an available request slot.
+   * Uses a chained promise queue to serialize slot acquisition,
+   * preventing race conditions where multiple concurrent awaits
+   * could read the same timestamp snapshot.
    */
   private async waitForSlot(): Promise<void> {
-    // Wait for retry-after if set
-    if (this.retryAfterMs > 0) {
-      await this.sleep(this.retryAfterMs);
-      this.retryAfterMs = 0;
-    }
-
-    const now = Date.now();
-    const windowStart = now - 1000;
-
-    // Clean old timestamps
-    this.requestTimestamps = this.requestTimestamps.filter(t => t > windowStart);
-
-    // Wait if at capacity
-    if (this.requestTimestamps.length >= this.config.maxRequestsPerSecond) {
-      const oldestInWindow = this.requestTimestamps[0];
-      const waitTime = oldestInWindow + 1000 - now;
-      if (waitTime > 0) {
-        await this.sleep(waitTime);
+    const acquireSlot = async (): Promise<void> => {
+      // Wait for retry-after if set
+      if (this.retryAfterMs > 0) {
+        await this.sleep(this.retryAfterMs);
+        this.retryAfterMs = 0;
       }
-    }
 
-    this.requestTimestamps.push(Date.now());
+      const now = Date.now();
+      const windowStart = now - 1000;
+
+      // Clean old timestamps
+      this.requestTimestamps = this.requestTimestamps.filter(t => t > windowStart);
+
+      // Wait if at capacity
+      if (this.requestTimestamps.length >= this.config.maxRequestsPerSecond) {
+        const oldestInWindow = this.requestTimestamps[0];
+        const waitTime = oldestInWindow + 1000 - now;
+        if (waitTime > 0) {
+          await this.sleep(waitTime);
+        }
+      }
+
+      // Register timestamp atomically after acquiring the slot
+      this.requestTimestamps.push(Date.now());
+    };
+
+    // Chain onto the pending slot promise to serialize access
+    this.pendingSlot = this.pendingSlot.then(acquireSlot, acquireSlot);
+    return this.pendingSlot;
   }
 
   /**

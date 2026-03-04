@@ -144,18 +144,27 @@ async function fetchStorageAccounts(context: AzureScanContext): Promise<StorageA
   const cacheKey = CacheKeys.storageAccounts(context.subscriptionId);
   
   return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=${STORAGE_API_VERSION}`;
+    const accounts: StorageAccount[] = [];
+    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=${STORAGE_API_VERSION}`;
+    let pageCount = 0;
+    const MAX_PAGES = 20;
     
-    const response = await rateLimitedFetch(url, {
-      headers: buildAuthHeaders(context.accessToken),
-    }, 'fetchStorageAccounts');
+    while (url && pageCount < MAX_PAGES) {
+      pageCount++;
+      const response = await rateLimitedFetch(url, {
+        headers: buildAuthHeaders(context.accessToken),
+      }, 'fetchStorageAccounts');
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Storage Accounts: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Storage Accounts: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json() as { value?: StorageAccount[]; nextLink?: string };
+      accounts.push(...(data.value || []));
+      url = data.nextLink || null;
     }
-
-    const data = await response.json() as { value?: StorageAccount[] };
-    return data.value || [];
+    
+    return accounts;
   });
 }
 
@@ -336,19 +345,19 @@ export const storageAccountsScanner: AzureScanner = {
           });
         }
 
-        // Check 7: Shared Key Access
+        // Check 7: Shared Key Access — allows bypassing Entra ID RBAC entirely
         if (props.allowSharedKeyAccess !== false) {
           findings.push({
-            severity: 'LOW',
+            severity: 'HIGH',
             title: 'Shared Key Access Enabled',
-            description: `Storage account ${account.name} allows shared key access`,
+            description: `Storage account ${account.name} allows shared key access. Anyone with the account key can access all data bypassing Azure AD/Entra ID RBAC.`,
             resourceType: 'Microsoft.Storage/storageAccounts',
             resourceId: account.id,
             resourceName: account.name,
             resourceGroup,
             region: account.location,
-            remediation: 'Disable shared key access and use Azure AD authentication',
-            complianceFrameworks: ['CIS Azure 1.4'],
+            remediation: 'Disable shared key access and use Azure AD authentication. Run: az storage account update --name <account> --resource-group <rg> --allow-shared-key-access false',
+            complianceFrameworks: ['CIS Azure 1.4', 'NIST 800-53'],
           });
         }
 

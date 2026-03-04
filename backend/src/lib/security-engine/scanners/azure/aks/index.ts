@@ -24,7 +24,7 @@ import { rateLimitedFetch } from '../utils/rate-limiter.js';
 // Configuration constants
 const AKS_API_VERSION = '2024-01-01';
 const MIN_KUBERNETES_MAJOR_VERSION = 1;
-const MIN_KUBERNETES_MINOR_VERSION = 27;
+const MIN_KUBERNETES_MINOR_VERSION = 29; // AKS minimum supported as of March 2026 (1.27 EOL Nov 2024, 1.28 EOL Mar 2025)
 const MIN_AVAILABILITY_ZONES = 2;
 
 // Helper to extract resource group from Azure resource ID
@@ -147,21 +147,30 @@ async function fetchAKSClusters(context: AzureScanContext): Promise<AKSCluster[]
   const cacheKey = CacheKeys.aksCluster(context.subscriptionId);
   
   return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.ContainerService/managedClusters?api-version=${AKS_API_VERSION}`;
+    const clusters: AKSCluster[] = [];
+    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.ContainerService/managedClusters?api-version=${AKS_API_VERSION}`;
+    let pageCount = 0;
+    const MAX_PAGES = 20;
     
-    const response = await rateLimitedFetch(url, {
-      headers: {
-        'Authorization': `Bearer ${context.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    }, 'fetchAKSClusters');
+    while (url && pageCount < MAX_PAGES) {
+      pageCount++;
+      const response = await rateLimitedFetch(url, {
+        headers: {
+          'Authorization': `Bearer ${context.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }, 'fetchAKSClusters');
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch AKS clusters: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch AKS clusters: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json() as { value?: AKSCluster[]; nextLink?: string };
+      clusters.push(...(data.value || []));
+      url = data.nextLink || null;
     }
-
-    const data = await response.json() as { value?: AKSCluster[] };
-    return data.value || [];
+    
+    return clusters;
   });
 }
 

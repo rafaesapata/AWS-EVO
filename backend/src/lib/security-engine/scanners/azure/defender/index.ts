@@ -154,11 +154,13 @@ const fetchDefenderPricing = (context: AzureScanContext) =>
   fetchSecurityResource<DefenderPricing>(context, 'pricings', API_VERSIONS.pricings, CacheKeys.defenderPricing(context.subscriptionId));
 
 // Map Defender severity to EVO severity
+// Assessments marked as 'high' by Microsoft are escalated to CRITICAL for consistency with mapAlertSeverity
 function mapSeverity(defenderSeverity?: string): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO' {
-  const severityMap: Record<string, 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'> = {
-    high: 'HIGH',
-    medium: 'MEDIUM',
-    low: 'LOW',
+  const severityMap: Record<string, 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'> = {
+    critical: 'CRITICAL',
+    high: 'CRITICAL',
+    medium: 'HIGH',
+    low: 'MEDIUM',
     informational: 'INFO',
   };
   return severityMap[defenderSeverity?.toLowerCase() || ''] || 'MEDIUM';
@@ -185,6 +187,10 @@ const CRITICAL_DEFENDER_PLANS = [
   { name: 'Dns', displayName: 'Defender for DNS' },
   { name: 'Containers', displayName: 'Defender for Containers' },
   { name: 'CloudPosture', displayName: 'Defender CSPM' },
+  { name: 'OpenSourceRelationalDatabases', displayName: 'Defender for Open-Source Relational Databases' },
+  { name: 'SqlServerVirtualMachines', displayName: 'Defender for SQL on VMs' },
+  { name: 'CosmosDbs', displayName: 'Defender for Cosmos DB' },
+  { name: 'Api', displayName: 'Defender for APIs' },
 ] as const;
 
 // Helper to create secure score findings

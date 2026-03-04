@@ -176,7 +176,7 @@ const DANGEROUS_PORTS: Record<string, { port: string; severity: 'CRITICAL' | 'HI
   '2049': { port: '2049', severity: 'HIGH', service: 'NFS' },
 };
 
-// Generic Azure API fetch helper with caching and rate limiting
+// Generic Azure API fetch helper with caching, rate limiting, and pagination
 async function fetchAzureResource<T>(
   context: AzureScanContext,
   resourcePath: string,
@@ -186,30 +186,43 @@ async function fetchAzureResource<T>(
   const cache = getGlobalCache();
   
   return cache.getOrFetch(cacheKey, async () => {
-    const url = `${AZURE_MANAGEMENT_BASE_URL}/subscriptions/${context.subscriptionId}/providers/${resourcePath}?api-version=${AZURE_NETWORK_API_VERSION}`;
+    const items: T[] = [];
+    let url: string | null = `${AZURE_MANAGEMENT_BASE_URL}/subscriptions/${context.subscriptionId}/providers/${resourcePath}?api-version=${AZURE_NETWORK_API_VERSION}`;
+    let pageCount = 0;
+    const MAX_PAGES = 20; // Safety limit
     
     try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, `fetch-${resourcePath}`);
+      while (url && pageCount < MAX_PAGES) {
+        pageCount++;
+        const response = await rateLimitedFetch(url, {
+          headers: {
+            'Authorization': `Bearer ${context.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }, `fetch-${resourcePath}`);
 
-      if (!response.ok) {
-        if (throwOnError) {
-          throw new Error(`Failed to fetch ${resourcePath}: ${response.status} ${response.statusText}`);
+        if (!response.ok) {
+          if (throwOnError) {
+            throw new Error(`Failed to fetch ${resourcePath}: ${response.status} ${response.statusText}`);
+          }
+          logger.warn(`Failed to fetch ${resourcePath}`, { status: response.status });
+          break;
         }
-        logger.warn(`Failed to fetch ${resourcePath}`, { status: response.status });
-        return [];
-      }
 
-      const data = await response.json() as { value?: T[] };
-      return data.value || [];
+        const data = await response.json() as { value?: T[]; nextLink?: string };
+        items.push(...(data.value || []));
+        url = data.nextLink || null;
+      }
+      
+      if (pageCount >= MAX_PAGES) {
+        logger.warn(`fetchAzureResource hit max page limit for ${resourcePath}`, { itemsCollected: items.length });
+      }
+      
+      return items;
     } catch (err) {
       if (throwOnError) throw err;
-      logger.warn(`Error fetching ${resourcePath}`, { error: (err as Error).message });
-      return [];
+      logger.warn(`Error fetching ${resourcePath}`, { error: (err as Error).message, itemsCollected: items.length });
+      return items.length > 0 ? items : [];
     }
   });
 }

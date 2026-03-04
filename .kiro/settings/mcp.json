@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "postgres-production": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://evoadmin:xJB8g6z84PzUYRhWMM8QkkQb@localhost:5433/evouds"
+      ],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

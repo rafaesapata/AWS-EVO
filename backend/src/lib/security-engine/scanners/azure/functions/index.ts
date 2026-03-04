@@ -101,22 +101,31 @@ async function fetchFunctionApps(context: AzureScanContext): Promise<FunctionApp
   const cacheKey = CacheKeys.functions(context.subscriptionId);
   
   return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Web/sites?api-version=${AZURE_WEB_API_VERSION}`;
+    const apps: FunctionApp[] = [];
+    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Web/sites?api-version=${AZURE_WEB_API_VERSION}`;
+    let pageCount = 0;
+    const MAX_PAGES = 20;
     
-    const response = await rateLimitedFetch(url, {
-      headers: {
-        'Authorization': `Bearer ${context.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    }, 'fetchFunctionApps');
+    while (url && pageCount < MAX_PAGES) {
+      pageCount++;
+      const response = await rateLimitedFetch(url, {
+        headers: {
+          'Authorization': `Bearer ${context.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }, 'fetchFunctionApps');
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Function Apps: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Function Apps: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json() as { value?: FunctionApp[]; nextLink?: string };
+      apps.push(...(data.value || []));
+      url = data.nextLink || null;
     }
-
-    const data = await response.json() as { value?: FunctionApp[] };
+    
     // Filter to only function apps
-    return (data.value || []).filter(app => app.kind?.includes('functionapp'));
+    return apps.filter(app => app.kind?.includes('functionapp'));
   });
 }
 
