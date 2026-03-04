@@ -16,6 +16,7 @@ import {
   GetAccountPasswordPolicyCommand,
   ListUsersCommand,
   ListAccessKeysCommand,
+  GetAccessKeyLastUsedCommand,
   GetLoginProfileCommand,
   ListMFADevicesCommand,
   ListAttachedUserPoliciesCommand,
@@ -425,76 +426,239 @@ export class IAMScanner extends BaseScanner {
         if (!user.UserName) continue;
 
         const keysResponse = await client.send(new ListAccessKeysCommand({ UserName: user.UserName }));
+        const activeKeys = (keysResponse.AccessKeyMetadata || []).filter(k => k.Status === 'Active');
         
         for (const key of keysResponse.AccessKeyMetadata || []) {
           if (!key.CreateDate || !key.AccessKeyId) continue;
 
           const ageInDays = Math.floor((Date.now() - key.CreateDate.getTime()) / (1000 * 60 * 60 * 24));
 
-          // Check for old access keys (90+ days)
-          if (ageInDays > 90) {
-            const severity = ageInDays > 180 ? 'high' : 'medium';
+          // ============================================================
+          // CHECK 1: Long-lived programmatic access keys (ANY active key)
+          // This is the PRIMARY finding — static credentials are inherently risky
+          // ============================================================
+          if (key.Status === 'Active') {
+            // Determine severity based on age thresholds
+            let severity: 'critical' | 'high' | 'medium';
+            let analysis: string;
+
+            if (ageInDays > 365) {
+              severity = 'critical';
+              analysis = 'CRITICAL RISK: This access key has been active for over a year. Long-lived static credentials are the #1 cause of AWS account compromises. They can be leaked in code repositories, logs, CI/CD configs, or stolen from developer machines. Unlike temporary credentials from SSO/IAM Identity Center, static keys never expire and provide persistent access without MFA. This key must be eliminated immediately.';
+            } else if (ageInDays > 180) {
+              severity = 'high';
+              analysis = 'HIGH RISK: This access key has been active for over 6 months. Static access keys (aws_access_key_id / aws_secret_access_key) are a severe security risk because they never expire, cannot enforce MFA per-request, and are frequently leaked in source code, environment variables, or CI/CD pipelines. Migrate to IAM Identity Center (SSO) for human users or IAM Roles for services.';
+            } else if (ageInDays > 90) {
+              severity = 'high';
+              analysis = 'HIGH RISK: This access key exceeds the 90-day rotation policy. Even with rotation, static credentials remain fundamentally insecure. AWS strongly recommends eliminating long-lived access keys entirely in favor of temporary credential mechanisms.';
+            } else {
+              severity = 'medium';
+              analysis = 'SECURITY WARNING: Active static access key detected. Even new access keys represent a security risk. Static credentials (aws_access_key_id / aws_secret_access_key) are the most common vector for AWS account compromise. They can be accidentally committed to Git, leaked in logs, or stolen from workstations. Plan migration to temporary credentials via IAM Identity Center (SSO) or IAM Roles.';
+            }
+
+            // Get last used info for richer evidence
+            let lastUsedInfo: { lastUsedDate?: string; lastUsedService?: string; lastUsedRegion?: string; neverUsed?: boolean } = {};
+            try {
+              const lastUsedResponse = await sendWithRetry(client, new GetAccessKeyLastUsedCommand({ AccessKeyId: key.AccessKeyId }), 'GetAccessKeyLastUsed');
+              const lastUsed = lastUsedResponse.AccessKeyLastUsed;
+              if (lastUsed?.LastUsedDate) {
+                lastUsedInfo = {
+                  lastUsedDate: lastUsed.LastUsedDate.toISOString(),
+                  lastUsedService: lastUsed.ServiceName || 'unknown',
+                  lastUsedRegion: lastUsed.Region || 'unknown',
+                };
+              } else {
+                lastUsedInfo = { neverUsed: true };
+              }
+            } catch {
+              // Non-critical, continue without last used info
+            }
+
+            const recommendedAlternative = this.getRecommendedAlternative(user.UserName, lastUsedInfo.lastUsedService);
+
             findings.push(this.createFinding({
               severity,
-              title: `Old Access Key: ${user.UserName} (${ageInDays} days)`,
-              description: `Access key ${key.AccessKeyId} for user ${user.UserName} is ${ageInDays} days old`,
-              analysis: ageInDays > 180 
-                ? 'HIGH RISK: Very old access key may be compromised. Rotate immediately.'
-                : 'Access keys should be rotated every 90 days.',
+              title: `Static Access Key Detected: ${user.UserName} (${ageInDays} days)`,
+              description: `IAM user ${user.UserName} has active static access key ${key.AccessKeyId} (aws_access_key_id/aws_secret_access_key). Age: ${ageInDays} days. ${lastUsedInfo.neverUsed ? 'Key has NEVER been used.' : `Last used: ${lastUsedInfo.lastUsedDate || 'unknown'} on ${lastUsedInfo.lastUsedService || 'unknown'}.`}`,
+              analysis,
               resource_id: key.AccessKeyId,
               resource_arn: this.arnBuilder.iamAccessKey(user.UserName, key.AccessKeyId),
-              scan_type: 'iam_old_access_key',
+              scan_type: 'iam_static_access_key',
               compliance: [
                 this.cisCompliance('1.14', 'Ensure access keys are rotated every 90 days or less'),
+                this.cisCompliance('1.4', 'Ensure no root user account access key exists'),
                 this.pciCompliance('8.2.4', 'Change user passwords at least once every 90 days'),
+                this.nistCompliance('IA-5(1)', 'Password-Based Authentication - use temporary credentials'),
+                this.wellArchitectedCompliance('SEC02-BP02', 'Use temporary credentials instead of long-lived access keys'),
               ],
               remediation: {
-                description: 'Rotate the access key',
-                steps: [
-                  'Create a new access key for the user',
-                  'Update applications to use the new key',
-                  'Disable the old access key',
-                  'After confirming new key works, delete the old key',
-                ],
-                cli_command: `aws iam create-access-key --user-name ${user.UserName} && aws iam delete-access-key --user-name ${user.UserName} --access-key-id ${key.AccessKeyId}`,
-                estimated_effort: 'medium',
+                description: recommendedAlternative.description,
+                steps: recommendedAlternative.steps,
+                cli_command: recommendedAlternative.cli_command,
+                estimated_effort: ageInDays > 180 ? 'high' : 'medium',
                 automation_available: true,
               },
-              evidence: { userName: user.UserName, accessKeyId: key.AccessKeyId, ageInDays, status: key.Status },
-              risk_vector: 'stale_credentials',
+              evidence: {
+                userName: user.UserName,
+                accessKeyId: key.AccessKeyId,
+                ageInDays,
+                status: key.Status,
+                ...lastUsedInfo,
+                recommendedAlternative: recommendedAlternative.type,
+              },
+              risk_vector: 'static_credentials',
+              attack_vectors: [
+                'Source code repository scanning (GitHub, GitLab leaks)',
+                'Environment variable exposure in CI/CD logs',
+                'Credential theft from developer workstations',
+                'Phishing attacks targeting developers',
+                'Insider threat with persistent access',
+                'Shared credentials across team members',
+              ],
+              business_impact: severity === 'critical'
+                ? 'Extremely old static key provides persistent unauthorized access. If compromised, attacker has indefinite access without MFA until key is manually revoked.'
+                : 'Static credentials provide persistent access without MFA enforcement. If leaked, attacker retains access until key is manually discovered and revoked.',
             }));
           }
 
-          // Check for inactive access keys
+          // ============================================================
+          // CHECK 2: Never-used access keys (created but abandoned)
+          // ============================================================
+          if (key.Status === 'Active' && ageInDays > 7) {
+            try {
+              const lastUsedResponse = await sendWithRetry(client, new GetAccessKeyLastUsedCommand({ AccessKeyId: key.AccessKeyId }), 'GetAccessKeyLastUsed');
+              const lastUsed = lastUsedResponse.AccessKeyLastUsed;
+              
+              if (!lastUsed?.LastUsedDate) {
+                findings.push(this.createFinding({
+                  severity: 'high',
+                  title: `Never-Used Access Key: ${user.UserName} (${ageInDays} days old)`,
+                  description: `Access key ${key.AccessKeyId} for user ${user.UserName} was created ${ageInDays} days ago but has NEVER been used`,
+                  analysis: 'HIGH RISK: This access key was created but never used. It likely represents forgotten credentials that expand the attack surface unnecessarily. An attacker who discovers this key would have access that the legitimate owner may not even be monitoring. Delete immediately.',
+                  resource_id: key.AccessKeyId,
+                  resource_arn: this.arnBuilder.iamAccessKey(user.UserName, key.AccessKeyId),
+                  scan_type: 'iam_never_used_access_key',
+                  compliance: [
+                    this.cisCompliance('1.12', 'Ensure credentials unused for 90 days or greater are disabled'),
+                    this.wellArchitectedCompliance('SEC02-BP02', 'Use temporary credentials'),
+                  ],
+                  remediation: {
+                    description: 'Delete this unused access key immediately',
+                    steps: [
+                      `Confirm with user ${user.UserName} that the key is not needed`,
+                      'Delete the access key since it was never used',
+                      'If programmatic access is needed, use IAM Identity Center or IAM Roles instead',
+                    ],
+                    cli_command: `aws iam delete-access-key --user-name ${user.UserName} --access-key-id ${key.AccessKeyId}`,
+                    estimated_effort: 'trivial',
+                    automation_available: true,
+                  },
+                  evidence: { userName: user.UserName, accessKeyId: key.AccessKeyId, ageInDays, neverUsed: true },
+                  risk_vector: 'abandoned_credentials',
+                }));
+              }
+
+              // CHECK 3: Access key not used in 90+ days (dormant)
+              if (lastUsed?.LastUsedDate) {
+                const daysSinceLastUse = Math.floor((Date.now() - lastUsed.LastUsedDate.getTime()) / (1000 * 60 * 60 * 24));
+                if (daysSinceLastUse > 90) {
+                  findings.push(this.createFinding({
+                    severity: 'high',
+                    title: `Dormant Access Key: ${user.UserName} (unused ${daysSinceLastUse} days)`,
+                    description: `Access key ${key.AccessKeyId} for user ${user.UserName} has not been used in ${daysSinceLastUse} days. Last used on ${lastUsed.LastUsedDate.toISOString().split('T')[0]} with ${lastUsed.ServiceName || 'unknown service'}`,
+                    analysis: `HIGH RISK: This access key has been dormant for ${daysSinceLastUse} days. Dormant credentials are prime targets for attackers because their misuse is less likely to be noticed. If the key is no longer needed, delete it. If still needed, migrate to temporary credentials.`,
+                    resource_id: key.AccessKeyId,
+                    resource_arn: this.arnBuilder.iamAccessKey(user.UserName, key.AccessKeyId),
+                    scan_type: 'iam_dormant_access_key',
+                    compliance: [
+                      this.cisCompliance('1.12', 'Ensure credentials unused for 90 days or greater are disabled'),
+                      this.nistCompliance('AC-2(3)', 'Disable inactive accounts'),
+                    ],
+                    remediation: {
+                      description: 'Disable or delete this dormant access key',
+                      steps: [
+                        `Verify with user ${user.UserName} if this key is still needed`,
+                        'If not needed: delete the key immediately',
+                        'If still needed: migrate to IAM Identity Center (SSO) or IAM Roles',
+                        'As interim measure: disable the key and monitor for complaints',
+                      ],
+                      cli_command: `aws iam update-access-key --user-name ${user.UserName} --access-key-id ${key.AccessKeyId} --status Inactive`,
+                      estimated_effort: 'low',
+                      automation_available: true,
+                    },
+                    evidence: {
+                      userName: user.UserName,
+                      accessKeyId: key.AccessKeyId,
+                      daysSinceLastUse,
+                      lastUsedDate: lastUsed.LastUsedDate.toISOString(),
+                      lastUsedService: lastUsed.ServiceName,
+                      lastUsedRegion: lastUsed.Region,
+                    },
+                    risk_vector: 'stale_credentials',
+                  }));
+                }
+              }
+            } catch {
+              // Non-critical, continue
+            }
+          }
+
+          // ============================================================
+          // CHECK 4: Inactive access keys that should be deleted
+          // ============================================================
           if (key.Status === 'Inactive' && ageInDays > 30) {
             findings.push(this.createFinding({
               severity: 'low',
               title: `Inactive Access Key Should Be Deleted: ${user.UserName}`,
               description: `Inactive access key ${key.AccessKeyId} has been inactive for ${ageInDays} days`,
-              analysis: 'Inactive keys should be deleted to reduce attack surface.',
+              analysis: 'Inactive keys should be deleted to reduce attack surface. An inactive key can be re-activated by anyone with IAM permissions.',
               resource_id: key.AccessKeyId,
               resource_arn: this.arnBuilder.iamAccessKey(user.UserName, key.AccessKeyId),
               scan_type: 'iam_inactive_access_key',
               compliance: [this.cisCompliance('1.12', 'Ensure credentials unused for 90 days or greater are disabled')],
+              remediation: {
+                description: 'Delete this inactive access key',
+                steps: [
+                  'Confirm the key is no longer needed',
+                  'Delete the access key permanently',
+                ],
+                cli_command: `aws iam delete-access-key --user-name ${user.UserName} --access-key-id ${key.AccessKeyId}`,
+                estimated_effort: 'trivial',
+                automation_available: true,
+              },
               evidence: { userName: user.UserName, accessKeyId: key.AccessKeyId, status: 'Inactive', ageInDays },
               risk_vector: 'stale_credentials',
             }));
           }
         }
 
-        // Check for multiple active access keys
-        const activeKeys = (keysResponse.AccessKeyMetadata || []).filter(k => k.Status === 'Active');
+        // ============================================================
+        // CHECK 5: Multiple active access keys per user
+        // ============================================================
         if (activeKeys.length > 1) {
           findings.push(this.createFinding({
-            severity: 'low',
+            severity: 'medium',
             title: `Multiple Active Access Keys: ${user.UserName}`,
-            description: `User ${user.UserName} has ${activeKeys.length} active access keys`,
-            analysis: 'Multiple active keys increase the attack surface. Consider consolidating.',
+            description: `User ${user.UserName} has ${activeKeys.length} active access keys. This doubles the attack surface and suggests poor credential hygiene.`,
+            analysis: 'Multiple active keys indicate either a failed rotation (old key not deleted) or shared credentials across systems. Each additional key is another secret that can be leaked. Consolidate to zero keys using IAM Roles/SSO, or at most one key during migration.',
             resource_id: user.UserName,
             resource_arn: user.Arn || this.arnBuilder.iamUser(user.UserName),
             scan_type: 'iam_multiple_access_keys',
-            compliance: [this.wellArchitectedCompliance('SEC', 'Implement least privilege')],
-            evidence: { userName: user.UserName, activeKeyCount: activeKeys.length },
+            compliance: [
+              this.wellArchitectedCompliance('SEC02-BP02', 'Use temporary credentials'),
+              this.cisCompliance('1.14', 'Ensure access keys are rotated every 90 days or less'),
+            ],
+            remediation: {
+              description: 'Consolidate to a single key, then migrate to temporary credentials',
+              steps: [
+                'Identify which key is actively used (check GetAccessKeyLastUsed)',
+                'Delete the unused/older key',
+                'Plan migration from remaining key to IAM Identity Center or IAM Roles',
+              ],
+              estimated_effort: 'medium',
+              automation_available: true,
+            },
+            evidence: { userName: user.UserName, activeKeyCount: activeKeys.length, keyIds: activeKeys.map(k => k.AccessKeyId) },
             risk_vector: 'credential_exposure',
           }));
         }
@@ -504,6 +668,77 @@ export class IAMScanner extends BaseScanner {
     }
 
     return findings;
+  }
+
+  /**
+   * Determine the best alternative to static access keys based on usage context
+   */
+  private getRecommendedAlternative(userName: string, lastUsedService?: string): {
+    type: string;
+    description: string;
+    steps: string[];
+    cli_command?: string;
+  } {
+    // Service accounts / CI/CD patterns
+    const cicdPatterns = ['codebuild', 'codepipeline', 'deploy', 'ci-', 'cd-', 'jenkins', 'github', 'gitlab', 'bitbucket', 'terraform', 'ansible'];
+    const isCICD = cicdPatterns.some(p => userName.toLowerCase().includes(p));
+    
+    // Application/service patterns
+    const servicePatterns = ['svc-', 'service-', 'app-', 'api-', 'lambda', 'ecs', 'ec2'];
+    const isServiceAccount = servicePatterns.some(p => userName.toLowerCase().includes(p));
+
+    // S3/data pipeline patterns
+    const dataPatterns = ['s3', 'data', 'etl', 'backup', 'sync'];
+    const isDataPipeline = dataPatterns.some(p => userName.toLowerCase().includes(p)) || lastUsedService === 's3';
+
+    if (isCICD) {
+      return {
+        type: 'iam_role_cicd',
+        description: 'Replace static keys with IAM Roles for CI/CD. Use OIDC federation for GitHub Actions, or IAM Roles for CodeBuild/CodePipeline.',
+        steps: [
+          'For GitHub Actions: Configure OIDC identity provider in IAM and create a role with trust policy for your repo',
+          'For CodeBuild/CodePipeline: Assign an IAM Role directly to the service (no keys needed)',
+          'For Jenkins on EC2: Use EC2 Instance Profile with IAM Role',
+          'For external CI/CD: Use IAM Roles Anywhere with X.509 certificates',
+          `After migration, delete the access key: aws iam delete-access-key --user-name ${userName} --access-key-id <KEY_ID>`,
+          `Then delete the IAM user if no longer needed: aws iam delete-user --user-name ${userName}`,
+        ],
+        cli_command: `# GitHub Actions OIDC example:\naws iam create-open-id-connect-provider --url https://token.actions.githubusercontent.com --client-id-list sts.amazonaws.com --thumbprint-list <THUMBPRINT>`,
+      };
+    }
+
+    if (isServiceAccount || isDataPipeline) {
+      return {
+        type: 'iam_role_service',
+        description: 'Replace static keys with IAM Roles. Services running on AWS (Lambda, ECS, EC2, etc.) should use execution roles. External services should use IAM Roles Anywhere.',
+        steps: [
+          'For AWS services (Lambda/ECS/EC2): Assign an IAM execution role directly — no access keys needed',
+          'For external applications: Use AWS IAM Roles Anywhere with X.509 certificates for temporary credentials',
+          'For cross-account access: Use IAM Role with sts:AssumeRole trust policy',
+          'For S3 integrations: Use S3 Access Points with IAM Roles or pre-signed URLs',
+          `After migration, delete the access key and IAM user`,
+        ],
+        cli_command: `# Create IAM Role for the service:\naws iam create-role --role-name ${userName}-role --assume-role-policy-document file://trust-policy.json`,
+      };
+    }
+
+    // Default: Human user — recommend SSO/Identity Center
+    return {
+      type: 'iam_identity_center_sso',
+      description: 'Migrate to AWS IAM Identity Center (SSO). Human users should NEVER use static access keys. SSO authenticates via browser, creates temporary session credentials, and enforces MFA automatically.',
+      steps: [
+        'Enable AWS IAM Identity Center (SSO) in your management account if not already enabled',
+        'Create or connect an identity source (Built-in, Active Directory, or external IdP like Okta/Azure AD)',
+        `Create a user account for ${userName} in Identity Center`,
+        'Assign appropriate Permission Sets (replaces IAM policies)',
+        `User authenticates via: aws sso login --profile <PROFILE_NAME>`,
+        'CLI automatically gets temporary credentials (valid 1-12 hours, configurable)',
+        'No aws_access_key_id or aws_secret_access_key stored anywhere',
+        `After SSO is working, delete the static access key: aws iam delete-access-key --user-name ${userName} --access-key-id <KEY_ID>`,
+        `Delete the IAM user: aws iam delete-user --user-name ${userName}`,
+      ],
+      cli_command: `# Configure SSO profile in ~/.aws/config:\n# [profile my-sso-profile]\n# sso_start_url = https://your-org.awsapps.com/start\n# sso_region = us-east-1\n# sso_account_id = 123456789012\n# sso_role_name = AdministratorAccess\n# region = us-east-1\n#\n# Then login: aws sso login --profile my-sso-profile`,
+    };
   }
 
   private async checkAdminPolicies(client: IAMClient): Promise<Finding[]> {
