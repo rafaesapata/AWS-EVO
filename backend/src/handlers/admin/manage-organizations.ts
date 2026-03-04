@@ -754,38 +754,32 @@ export async function handler(
           }
 
           // STEP 2: Create profile in database
-          const newProfile = await prisma.$transaction(async (tx) => {
-            const profile = await tx.profile.create({
-              data: {
-                user_id: cognitoUserId!,
-                email: body.email!,
-                full_name: body.full_name!,
-                organization_id: body.id!,
-                role: body.role!
-              }
-            });
+          const newProfile = await prisma.profile.create({
+            data: {
+              user_id: cognitoUserId!,
+              email: body.email!,
+              full_name: body.full_name!,
+              organization_id: body.id!,
+              role: body.role!
+            }
+          });
 
-            // Audit log
-            await tx.auditLog.create({
-              data: {
-                organization_id: body.id!,
-                user_id: user.sub || user.id || 'system',
-                action: 'CREATE_USER',
-                resource_type: 'USER',
-                resource_id: cognitoUserId!,
-                details: {
-                  email: body.email,
-                  full_name: body.full_name,
-                  role: body.role,
-                  created_by: user.email || user.sub,
-                  invite_sent: sendInvite
-                },
-                ip_address: getIpFromEvent(event),
-                user_agent: getUserAgentFromEvent(event)
-              }
-            });
-
-            return profile;
+          // Audit log (fire-and-forget, won't block or fail the operation)
+          logAuditAsync({
+            organizationId: body.id!,
+            userId: user.sub,
+            action: 'USER_CREATE',
+            resourceType: 'user',
+            resourceId: cognitoUserId!,
+            details: {
+              email: body.email,
+              full_name: body.full_name,
+              role: body.role,
+              created_by: user.email || user.sub,
+              invite_sent: sendInvite
+            },
+            ipAddress: getIpFromEvent(event),
+            userAgent: getUserAgentFromEvent(event)
           });
 
           logger.info('User created successfully for organization', {
@@ -869,22 +863,19 @@ export async function handler(
         });
 
         // Registrar no audit log
-        await prisma.auditLog.create({
-          data: {
-            id: randomUUID(),
-            organization_id: body.id,
-            user_id: user.sub || user.id || 'system',
-            action: 'ORGANIZATION_SUSPENDED',
-            resource_type: 'organization',
-            resource_id: body.id,
-            details: {
-              reason: body.reason || 'Suspended by super admin',
-              suspended_by: user.email || user.sub,
-              user_count: orgToSuspend._count.profiles
-            },
-            ip_address: event.requestContext?.identity?.sourceIp || 'unknown',
-            user_agent: event.headers?.['user-agent'] || 'unknown'
-          }
+        logAuditAsync({
+          organizationId: body.id!,
+          userId: user.sub,
+          action: 'ORGANIZATION_SUSPENDED',
+          resourceType: 'organization',
+          resourceId: body.id,
+          details: {
+            reason: body.reason || 'Suspended by super admin',
+            suspended_by: user.email || user.sub,
+            user_count: orgToSuspend._count.profiles
+          },
+          ipAddress: getIpFromEvent(event),
+          userAgent: getUserAgentFromEvent(event)
         });
 
         logger.info('Organization suspended', {
@@ -934,21 +925,18 @@ export async function handler(
         });
 
         // Registrar no audit log
-        await prisma.auditLog.create({
-          data: {
-            id: randomUUID(),
-            organization_id: body.id,
-            user_id: user.sub || user.id || 'system',
-            action: 'ORGANIZATION_UNSUSPENDED',
-            resource_type: 'organization',
-            resource_id: body.id,
-            details: {
-              reason: body.reason || 'Unsuspended by super admin',
-              unsuspended_by: user.email || user.sub
-            },
-            ip_address: event.requestContext?.identity?.sourceIp || 'unknown',
-            user_agent: event.headers?.['user-agent'] || 'unknown'
-          }
+        logAuditAsync({
+          organizationId: body.id!,
+          userId: user.sub,
+          action: 'ORGANIZATION_UNSUSPENDED',
+          resourceType: 'organization',
+          resourceId: body.id,
+          details: {
+            reason: body.reason || 'Unsuspended by super admin',
+            unsuspended_by: user.email || user.sub
+          },
+          ipAddress: getIpFromEvent(event),
+          userAgent: getUserAgentFromEvent(event)
         });
 
         logger.info('Organization unsuspended', {
@@ -1203,25 +1191,22 @@ export async function handler(
         });
 
         // Registrar no audit log
-        await prisma.auditLog.create({
-          data: {
-            id: randomUUID(),
-            organization_id: body.id,
-            user_id: user.sub || user.id || 'system',
-            action: 'SEAT_RELEASED',
-            resource_type: 'license_seat_assignment',
-            resource_id: body.seat_assignment_id,
-            details: {
-              released_user_id: seatAssignment.user_id,
-              released_user_name: userProfile?.full_name || 'Unknown',
-              license_id: seatAssignment.license_id,
-              license_key: seatAssignment.license.license_key,
-              reason: body.reason || 'Released by super admin',
-              released_by: user.email || user.sub
-            },
-            ip_address: event.requestContext?.identity?.sourceIp || 'unknown',
-            user_agent: event.headers?.['user-agent'] || 'unknown'
-          }
+        logAuditAsync({
+          organizationId: body.id!,
+          userId: user.sub,
+          action: 'SEAT_RELEASED',
+          resourceType: 'license_seat_assignment',
+          resourceId: body.seat_assignment_id,
+          details: {
+            released_user_id: seatAssignment.user_id,
+            released_user_name: userProfile?.full_name || 'Unknown',
+            license_id: seatAssignment.license_id,
+            license_key: seatAssignment.license.license_key,
+            reason: body.reason || 'Released by super admin',
+            released_by: user.email || user.sub
+          },
+          ipAddress: getIpFromEvent(event),
+          userAgent: getUserAgentFromEvent(event)
         });
 
         logger.info('Seat assignment released', {
