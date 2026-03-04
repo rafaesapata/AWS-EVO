@@ -12,6 +12,7 @@ import {
   DescribeDBClustersCommand,
   DescribeDBSnapshotsCommand,
   DescribeDBClusterSnapshotsCommand,
+  DescribeDBParametersCommand,
 } from '@aws-sdk/client-rds';
 
 export class RDSScanner extends BaseScanner {
@@ -163,6 +164,61 @@ export class RDSScanner extends BaseScanner {
             evidence: { dbIdentifier: db.DBInstanceIdentifier },
             risk_vector: 'weak_authentication',
           }));
+        }
+
+        // Check SSL/TLS enforcement via parameter group
+        if (db.DBParameterGroups && db.DBParameterGroups.length > 0) {
+          const paramGroupName = db.DBParameterGroups[0].DBParameterGroupName;
+          if (paramGroupName) {
+            try {
+              const engine = (db.Engine || '').toLowerCase();
+              const sslParam = engine.includes('postgres') ? 'rds.force_ssl' : 
+                               engine.includes('mysql') || engine.includes('mariadb') ? 'require_secure_transport' : null;
+              
+              if (sslParam) {
+                const paramsResponse = await client.send(new DescribeDBParametersCommand({
+                  DBParameterGroupName: paramGroupName,
+                  Source: 'user',
+                }));
+                const sslSetting = (paramsResponse.Parameters || []).find(
+                  (p: any) => p.ParameterName === sslParam
+                );
+                const sslEnabled = sslSetting?.ParameterValue === '1' || sslSetting?.ParameterValue === 'ON';
+                
+                if (!sslEnabled) {
+                  findings.push(this.createFinding({
+                    severity: 'high',
+                    title: `RDS SSL/TLS Not Enforced: ${db.DBInstanceIdentifier}`,
+                    description: `Parameter ${sslParam} is not enabled — connections may use plaintext`,
+                    analysis: 'HIGH RISK: Data in transit is not encrypted. Clients can connect without SSL.',
+                    resource_id: db.DBInstanceIdentifier,
+                    resource_arn: dbArn,
+                    scan_type: 'rds_ssl_not_enforced',
+                    compliance: [
+                      this.cisCompliance('2.3.2', 'Ensure RDS instances require SSL/TLS'),
+                      this.pciCompliance('4.1', 'Use strong cryptography for transmission'),
+                      this.nistCompliance('SC-8', 'Transmission Confidentiality and Integrity'),
+                    ],
+                    remediation: {
+                      description: `Enable ${sslParam} in the parameter group`,
+                      steps: [
+                        'Go to RDS Console > Parameter Groups',
+                        `Select ${paramGroupName}`,
+                        `Set ${sslParam} = 1 (PostgreSQL) or ON (MySQL)`,
+                        'Reboot the instance for changes to take effect',
+                      ],
+                      estimated_effort: 'low',
+                      automation_available: true,
+                    },
+                    evidence: { dbIdentifier: db.DBInstanceIdentifier, engine: db.Engine, paramGroup: paramGroupName, sslParam, currentValue: sslSetting?.ParameterValue || 'not set' },
+                    risk_vector: 'data_exposure',
+                  }));
+                }
+              }
+            } catch (e) {
+              this.warn(`Failed to check SSL params for ${db.DBInstanceIdentifier}`, { error: (e as Error).message });
+            }
+          }
         }
       }
     } catch (error) {

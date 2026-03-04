@@ -30,8 +30,14 @@ export class LambdaScanner extends BaseScanner {
     const lambdaClient = await this.clientFactory.getLambdaClient(this.region);
 
     try {
-      const functionsResponse = await lambdaClient.send(new ListFunctionsCommand({}));
-      const functions = functionsResponse.Functions || [];
+      // Paginate through all functions (ListFunctions returns max 50 per call)
+      const functions: any[] = [];
+      let marker: string | undefined;
+      do {
+        const response = await lambdaClient.send(new ListFunctionsCommand({ Marker: marker }));
+        functions.push(...(response.Functions || []));
+        marker = response.NextMarker;
+      } while (marker);
 
       for (const fn of functions) {
         if (!fn.FunctionName || !fn.FunctionArn) continue;

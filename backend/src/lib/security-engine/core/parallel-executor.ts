@@ -41,36 +41,36 @@ export class ParallelExecutor {
     const results: R[] = [];
     const errors: Array<{ item: T; error: Error }> = [];
     
-    // Process items in batches
-    const batches = this.chunk(items, concurrency);
+    // Sliding window concurrency (p-limit pattern) instead of fixed batches
+    const executing = new Set<Promise<void>>();
     
-    for (const batch of batches) {
-      const batchPromises = batch.map(async (item) => {
+    for (const item of items) {
+      const task = (async () => {
         try {
           const result = await this.executeWithTimeout(
             () => processor(item),
             this.config.timeout
           );
-          return { success: true, data: result, item };
+          results.push(result);
         } catch (error) {
           const err = error as Error;
           if (onError) {
             onError(err, item);
           }
-          return { success: false, error: err, item };
+          errors.push({ item, error: err });
         }
-      });
-
-      const batchResults = await Promise.all(batchPromises);
+      })();
       
-      for (const result of batchResults) {
-        if (result.success && result.data !== undefined) {
-          results.push(result.data);
-        } else if (!result.success && result.error) {
-          errors.push({ item: result.item, error: result.error });
-        }
+      executing.add(task);
+      const cleanup = task.then(() => executing.delete(task));
+      
+      if (executing.size >= concurrency) {
+        await Promise.race(executing);
       }
     }
+    
+    // Wait for remaining tasks
+    await Promise.all(executing);
 
     return {
       results,

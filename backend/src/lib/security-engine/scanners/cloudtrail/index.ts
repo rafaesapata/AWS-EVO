@@ -78,6 +78,22 @@ export class CloudTrailScanner extends BaseScanner {
           risk_vector: 'no_audit_trail',
         }));
       }
+
+      // Check for delivery errors or stopped logging
+      if (status.LatestDeliveryError) {
+        findings.push(this.createFinding({
+          severity: 'high',
+          title: `CloudTrail Delivery Failing: ${trailName}`,
+          description: `Trail has delivery errors: ${status.LatestDeliveryError}`,
+          analysis: 'HIGH RISK: Logs are not being delivered. Events may be lost silently.',
+          resource_id: trailName,
+          resource_arn: trailArn,
+          scan_type: 'cloudtrail_delivery_error',
+          compliance: [this.cisCompliance('3.1', 'Ensure CloudTrail is enabled')],
+          evidence: { trailName, latestDeliveryError: status.LatestDeliveryError, latestDeliveryTime: status.LatestDeliveryTime },
+          risk_vector: 'no_audit_trail',
+        }));
+      }
     } catch (e) {
       this.warn(`Failed to get trail status: ${trailName}`);
     }
@@ -141,6 +157,54 @@ export class CloudTrailScanner extends BaseScanner {
           resource_arn: trailArn,
           scan_type: 'cloudtrail_no_management_events',
           compliance: [this.cisCompliance('3.1', 'Ensure CloudTrail is enabled')],
+          evidence: { trailName },
+          risk_vector: 'no_audit_trail',
+        }));
+      }
+
+      // Check for S3 data events (CIS 3.1 requires data events for S3)
+      const hasS3DataEvents = selectors.EventSelectors?.some(s => 
+        s.DataResources?.some((dr: any) => dr.Type === 'AWS::S3::Object')
+      ) || selectors.AdvancedEventSelectors?.some(s =>
+        s.FieldSelectors?.some((fs: any) => fs.Field === 'resources.type' && fs.Equals?.includes('AWS::S3::Object'))
+      );
+
+      if (!hasS3DataEvents) {
+        findings.push(this.createFinding({
+          severity: 'high',
+          title: `CloudTrail Missing S3 Data Events: ${trailName}`,
+          description: 'Trail is not logging S3 object-level operations (GetObject, PutObject, DeleteObject)',
+          analysis: 'HIGH RISK: S3 data access is not audited. Data exfiltration via GetObject will not be detected.',
+          resource_id: trailName,
+          resource_arn: trailArn,
+          scan_type: 'cloudtrail_no_s3_data_events',
+          compliance: [
+            this.cisCompliance('3.1', 'Ensure S3 bucket object-level logging is enabled'),
+            this.pciCompliance('10.2', 'Implement automated audit trails'),
+          ],
+          evidence: { trailName, eventSelectors: selectors.EventSelectors },
+          risk_vector: 'no_audit_trail',
+          attack_vectors: ['Data exfiltration', 'Unauthorized data access'],
+        }));
+      }
+
+      // Check for Lambda data events
+      const hasLambdaDataEvents = selectors.EventSelectors?.some(s =>
+        s.DataResources?.some((dr: any) => dr.Type === 'AWS::Lambda::Function')
+      ) || selectors.AdvancedEventSelectors?.some(s =>
+        s.FieldSelectors?.some((fs: any) => fs.Field === 'resources.type' && fs.Equals?.includes('AWS::Lambda::Function'))
+      );
+
+      if (!hasLambdaDataEvents) {
+        findings.push(this.createFinding({
+          severity: 'medium',
+          title: `CloudTrail Missing Lambda Data Events: ${trailName}`,
+          description: 'Trail is not logging Lambda invocation events',
+          analysis: 'Lambda invocations are not audited. Unauthorized function calls will not be detected.',
+          resource_id: trailName,
+          resource_arn: trailArn,
+          scan_type: 'cloudtrail_no_lambda_data_events',
+          compliance: [this.nistCompliance('AU-12', 'Audit Generation')],
           evidence: { trailName },
           risk_vector: 'no_audit_trail',
         }));

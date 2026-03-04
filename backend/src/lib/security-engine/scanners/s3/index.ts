@@ -258,6 +258,42 @@ export class S3Scanner extends BaseScanner {
                 risk_vector: 'data_exposure',
               }));
             }
+
+            // Check for NotPrincipal with Allow (grants access to EVERYONE except listed)
+            if (statement.Effect === 'Allow' && statement.NotPrincipal) {
+              findings.push(this.createFinding({
+                severity: 'critical',
+                title: `S3 Bucket Policy With NotPrincipal Allow: ${bucketName}`,
+                description: `Bucket policy uses NotPrincipal with Effect:Allow — grants access to all principals except those listed`,
+                analysis: 'CRITICAL RISK: NotPrincipal + Allow is an inverted allowlist that grants access to virtually everyone. This is almost always a misconfiguration.',
+                resource_id: bucketName,
+                resource_arn: bucketArn,
+                scan_type: 's3_notprincipal_allow',
+                compliance: [
+                  this.cisCompliance('2.1.5', 'Ensure S3 bucket public access is blocked'),
+                  this.nistCompliance('AC-3', 'Access Enforcement'),
+                ],
+                evidence: { bucketName, statement },
+                risk_vector: 'public_exposure',
+                attack_vectors: ['Unauthorized access', 'Data exfiltration'],
+              }));
+            }
+
+            // Check for NotAction with Allow (grants all actions except listed)
+            if (statement.Effect === 'Allow' && statement.NotAction) {
+              findings.push(this.createFinding({
+                severity: 'high',
+                title: `S3 Bucket Policy With NotAction Allow: ${bucketName}`,
+                description: `Bucket policy uses NotAction with Effect:Allow — grants all actions except those listed`,
+                analysis: 'HIGH RISK: NotAction + Allow grants a very broad set of permissions. Review if this is intentional.',
+                resource_id: bucketName,
+                resource_arn: bucketArn,
+                scan_type: 's3_notaction_allow',
+                compliance: [this.nistCompliance('AC-6', 'Least Privilege')],
+                evidence: { bucketName, notAction: statement.NotAction },
+                risk_vector: 'excessive_permissions',
+              }));
+            }
           }
         }
       } catch (e: any) {

@@ -81,6 +81,7 @@ export class PersistentCache {
   private dynamoClient: DynamoDBClient | null = null;
   private accountId: string;
   private ttl: number;
+  private pendingWrites: Promise<void>[] = [];
   private stats: CacheStats = {
     hits: 0,
     misses: 0,
@@ -171,15 +172,16 @@ export class PersistentCache {
       hits: 0,
     });
     
-    // Store in DynamoDB (async, don't wait)
+    // Store in DynamoDB (tracked for flush before Lambda freeze)
     if (this.dynamoAvailable && this.dynamoClient) {
-      this.setInDynamo(fullKey, data, expires).catch((error) => {
+      const writePromise = this.setInDynamo(fullKey, data, expires).catch((error) => {
         this.stats.errors++;
         logger.warn('[PersistentCache] DynamoDB set failed', {
           key: fullKey,
           error: (error as Error).message,
         });
       });
+      this.pendingWrites.push(writePromise);
     }
   }
 
@@ -304,10 +306,20 @@ export class PersistentCache {
   }
 
   /**
-   * Build full cache key
+   * Flush all pending DynamoDB writes (call before Lambda returns)
+   */
+  async flush(): Promise<void> {
+    if (this.pendingWrites.length > 0) {
+      await Promise.allSettled(this.pendingWrites);
+      this.pendingWrites = [];
+    }
+  }
+
+  /**
+   * Build full cache key (uses || separator to avoid ARN colon conflicts)
    */
   private buildKey(key: string): string {
-    return `${this.accountId}:${key}`;
+    return `${this.accountId}||${key}`;
   }
 
   /**
@@ -316,8 +328,9 @@ export class PersistentCache {
   private async getFromDynamo<T>(fullKey: string): Promise<T | null> {
     if (!this.dynamoClient) return null;
     
-    const [pk, ...skParts] = fullKey.split(':');
-    const sk = skParts.join(':');
+    const separatorIdx = fullKey.indexOf('||');
+    const pk = fullKey.slice(0, separatorIdx);
+    const sk = fullKey.slice(separatorIdx + 2);
     
     const response = await this.dynamoClient.send(new GetItemCommand({
       TableName: CACHE_TABLE_NAME,
@@ -342,8 +355,9 @@ export class PersistentCache {
   private async setInDynamo<T>(fullKey: string, data: T, expires: number): Promise<void> {
     if (!this.dynamoClient) return;
     
-    const [pk, ...skParts] = fullKey.split(':');
-    const sk = skParts.join(':');
+    const separatorIdx = fullKey.indexOf('||');
+    const pk = fullKey.slice(0, separatorIdx);
+    const sk = fullKey.slice(separatorIdx + 2);
     const now = Date.now();
     
     const item: CacheEntry<T> = {
@@ -368,8 +382,9 @@ export class PersistentCache {
   private async deleteFromDynamo(fullKey: string): Promise<void> {
     if (!this.dynamoClient) return;
     
-    const [pk, ...skParts] = fullKey.split(':');
-    const sk = skParts.join(':');
+    const separatorIdx = fullKey.indexOf('||');
+    const pk = fullKey.slice(0, separatorIdx);
+    const sk = fullKey.slice(separatorIdx + 2);
     
     await this.dynamoClient.send(new DeleteItemCommand({
       TableName: CACHE_TABLE_NAME,

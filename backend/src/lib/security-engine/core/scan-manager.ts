@@ -172,20 +172,27 @@ export class ScanManager {
 
       // Run global scanners first (only once)
       const globalScanners = enabledScanners.filter(s => s.isGlobal);
-      const globalFindings = await this.runScanners(globalScanners, 'us-east-1', accountId);
-      allFindings.push(...globalFindings);
+      const globalResult = await this.runScanners(globalScanners, 'us-east-1', accountId);
+      allFindings.push(...globalResult.findings);
+      totalErrors += globalResult.errors;
 
       // Run regional scanners for each region
       const regionalScanners = enabledScanners.filter(s => !s.isGlobal);
       
       for (const region of this.context.regions) {
         logger.info(`Scanning region: ${region}`);
-        const regionalFindings = await this.runScanners(regionalScanners, region, accountId);
-        allFindings.push(...regionalFindings);
+        const regionalResult = await this.runScanners(regionalScanners, region, accountId);
+        allFindings.push(...regionalResult.findings);
+        totalErrors += regionalResult.errors;
       }
     } catch (error) {
       logger.error('Scan failed', error as Error);
       totalErrors++;
+    }
+
+    // Flush pending cache writes before Lambda freezes
+    if (this.persistentCache) {
+      await this.persistentCache.flush();
     }
 
     const duration = Date.now() - startTime;
@@ -271,8 +278,9 @@ export class ScanManager {
     scanners: ScannerConfig[],
     region: string,
     accountId: string
-  ): Promise<Finding[]> {
+  ): Promise<{ findings: Finding[]; errors: number }> {
     const findings: Finding[] = [];
+    let scannerErrors = 0;
 
     const results = await Promise.allSettled(
       scanners.map(async (config) => {
@@ -302,6 +310,7 @@ export class ScanManager {
         } catch (error) {
           const duration = Date.now() - startTime;
           this.executor.recordMetric(config.name, region, duration, 0, 1);
+          scannerErrors++;
           
           // Track timed out scanners
           if (error instanceof ScannerTimeoutError) {
@@ -328,7 +337,7 @@ export class ScanManager {
       }
     }
 
-    return findings;
+    return { findings, errors: scannerErrors };
   }
 
   private calculateSummary(findings: Finding[]): ScanSummary {

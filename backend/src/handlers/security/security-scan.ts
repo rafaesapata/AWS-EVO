@@ -265,8 +265,8 @@ async function securityScanHandler(
     // Compute fingerprints for all scan findings
     const newFindings: NewScanFinding[] = scanResult.findings.map(finding => {
       const fingerprint = finding.resource_arn
-        ? computeFingerprint(finding.resource_arn, finding.scan_type, finding.title)
-        : computeFallbackFingerprint(finding.scan_type, finding.title, finding.resource_id);
+        ? computeFingerprint(finding.resource_arn, finding.scan_type, finding.title, finding.region)
+        : computeFallbackFingerprint(finding.scan_type, finding.title, finding.resource_id, finding.region);
       
       return {
         fingerprint,

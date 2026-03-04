@@ -23,6 +23,7 @@ import {
   ListUserPoliciesCommand,
   ListRolesCommand,
   GetAccountSummaryCommand,
+  ListAttachedRolePoliciesCommand,
 } from '@aws-sdk/client-iam';
 import {
   AccessAnalyzerClient,
@@ -57,15 +58,24 @@ export class IAMScanner extends BaseScanner {
 
     const iamClient = await this.clientFactory.getIAMClient();
 
+    // Fetch account summary once and share across checks that need it
+    let accountSummaryMap: Record<string, number> = {};
+    try {
+      const summary = await sendWithRetry(iamClient, new GetAccountSummaryCommand({}), 'GetAccountSummary');
+      accountSummaryMap = summary.SummaryMap || {};
+    } catch (error) {
+      this.warn('Failed to get account summary', { error: (error as Error).message });
+    }
+
     // Run all checks in parallel where possible
     const checkResults = await Promise.allSettled([
       this.checkPasswordPolicy(iamClient),
-      this.checkRootAccountMFA(iamClient),
+      this.checkRootAccountMFA(iamClient, accountSummaryMap),
       this.checkUsersMFA(iamClient),
       this.checkAccessKeys(iamClient),
       this.checkAdminPolicies(iamClient),
       this.checkRoleTrustPolicies(iamClient),
-      this.checkAccountSummary(iamClient),
+      this.checkAccountSummary(iamClient, accountSummaryMap),
       this.checkAccessAnalyzer(), // New critical check
     ]);
 
@@ -258,13 +268,10 @@ export class IAMScanner extends BaseScanner {
   }
 
 
-  private async checkRootAccountMFA(client: IAMClient): Promise<Finding[]> {
+  private async checkRootAccountMFA(client: IAMClient, summaryMap: Record<string, number>): Promise<Finding[]> {
     const findings: Finding[] = [];
 
     try {
-      const summary = await client.send(new GetAccountSummaryCommand({}));
-      const summaryMap = summary.SummaryMap || {};
-
       // Check if root account has MFA
       if (summaryMap.AccountMFAEnabled !== 1) {
         findings.push(this.createFinding({
@@ -885,6 +892,39 @@ export class IAMScanner extends BaseScanner {
         } catch (parseError) {
           this.warn(`Failed to parse trust policy for role ${role.RoleName}`);
         }
+
+        // Check for admin roles without Permission Boundary
+        if (!role.PermissionsBoundary) {
+          try {
+            const attachedPolicies = await sendWithRetry(
+              client,
+              new ListAttachedRolePoliciesCommand({ RoleName: role.RoleName }),
+              'ListAttachedRolePolicies'
+            );
+            const hasAdminPolicy = (attachedPolicies.AttachedPolicies || []).some(
+              (p: any) => p.PolicyArn?.includes('AdministratorAccess') || p.PolicyArn?.includes('PowerUserAccess')
+            );
+            if (hasAdminPolicy) {
+              findings.push(this.createFinding({
+                severity: 'high',
+                title: `IAM Role Without Permission Boundary: ${role.RoleName}`,
+                description: `Privileged role ${role.RoleName} has no Permission Boundary configured`,
+                analysis: 'HIGH RISK: Admin roles without Permission Boundaries can perform any action without guardrails.',
+                resource_id: role.RoleName,
+                resource_arn: role.Arn || this.arnBuilder.iamRole(role.RoleName),
+                scan_type: 'iam_role_no_permission_boundary',
+                compliance: [
+                  this.nistCompliance('AC-6', 'Least Privilege'),
+                  this.cisCompliance('1.16', 'Ensure IAM policies are attached only to groups or roles'),
+                ],
+                evidence: { roleName: role.RoleName, adminPolicies: attachedPolicies.AttachedPolicies?.map((p: any) => p.PolicyName) },
+                risk_vector: 'excessive_permissions',
+              }));
+            }
+          } catch (e) {
+            this.warn(`Failed to check attached policies for role ${role.RoleName}`);
+          }
+        }
       }
     } catch (error) {
       this.warn('Failed to check role trust policies', { error: (error as Error).message });
@@ -893,13 +933,10 @@ export class IAMScanner extends BaseScanner {
     return findings;
   }
 
-  private async checkAccountSummary(client: IAMClient): Promise<Finding[]> {
+  private async checkAccountSummary(client: IAMClient, summaryMap: Record<string, number>): Promise<Finding[]> {
     const findings: Finding[] = [];
 
     try {
-      const summary = await client.send(new GetAccountSummaryCommand({}));
-      const summaryMap = summary.SummaryMap || {};
-
       // Check for users without groups
       if (summaryMap.Users && summaryMap.Users > 0 && summaryMap.Groups === 0) {
         findings.push(this.createFinding({

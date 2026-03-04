@@ -13,6 +13,7 @@ import {
   DescribeSecurityGroupsCommand,
   DescribeVolumesCommand,
   DescribeSnapshotsCommand,
+  DescribeSnapshotAttributeCommand,
   DescribeVpcsCommand,
   DescribeFlowLogsCommand,
   DescribeImagesCommand,
@@ -142,27 +143,96 @@ export class EC2Scanner extends BaseScanner {
               }
             }
           }
-        }
 
-        // Check for unrestricted egress
-        for (const rule of sg.IpPermissionsEgress || []) {
-          if (rule.IpProtocol === '-1') {
-            for (const ipRange of rule.IpRanges || []) {
-              if (ipRange.CidrIp === '0.0.0.0/0') {
+          // IPv6: Check ::/0 (all IPv6) — same critical/high port checks
+          for (const ipv6Range of rule.Ipv6Ranges || []) {
+            if (ipv6Range.CidrIpv6 === '::/0') {
+              const fromPort = rule.FromPort || 0;
+              const toPort = rule.ToPort || 65535;
+
+              for (const [port, service] of Object.entries(CRITICAL_PORTS)) {
+                const portNum = parseInt(port);
+                if (fromPort <= portNum && toPort >= portNum) {
+                  findings.push(this.createFinding({
+                    severity: 'critical',
+                    title: `Security Group Exposes ${service} (${port}) to Internet via IPv6: ${sg.GroupName}`,
+                    description: `Security group ${sg.GroupId} allows inbound ${service} from ::/0 (all IPv6)`,
+                    analysis: `CRITICAL RISK: ${service} port ${port} is exposed to all IPv6 addresses.`,
+                    resource_id: sg.GroupId,
+                    resource_arn: sgArn,
+                    scan_type: 'ec2_sg_critical_port_open_ipv6',
+                    compliance: [
+                      this.cisCompliance('5.3', 'Ensure no security groups allow ingress from ::/0 to remote server administration ports'),
+                      this.pciCompliance('1.3.1', 'Implement a DMZ to limit inbound traffic'),
+                    ],
+                    evidence: { groupId: sg.GroupId, groupName: sg.GroupName, port, service, cidr: '::/0' },
+                    risk_vector: 'network_exposure',
+                    attack_vectors: ['Brute force', 'Exploitation', 'Unauthorized access'],
+                  }));
+                }
+              }
+
+              for (const [port, service] of Object.entries(HIGH_RISK_PORTS)) {
+                const portNum = parseInt(port);
+                if (fromPort <= portNum && toPort >= portNum) {
+                  findings.push(this.createFinding({
+                    severity: 'high',
+                    title: `Security Group Exposes ${service} (${port}) to Internet via IPv6: ${sg.GroupName}`,
+                    description: `Security group ${sg.GroupId} allows inbound ${service} from ::/0`,
+                    analysis: `HIGH RISK: ${service} port ${port} is exposed via IPv6.`,
+                    resource_id: sg.GroupId,
+                    resource_arn: sgArn,
+                    scan_type: 'ec2_sg_high_risk_port_open_ipv6',
+                    compliance: [this.cisCompliance('5.3', 'Ensure no security groups allow ingress from ::/0')],
+                    evidence: { groupId: sg.GroupId, port, service, cidr: '::/0' },
+                    risk_vector: 'network_exposure',
+                  }));
+                }
+              }
+
+              if (fromPort === 0 && toPort === 65535) {
                 findings.push(this.createFinding({
-                  severity: 'low',
-                  title: `Security Group Has Unrestricted Egress: ${sg.GroupName}`,
-                  description: `Security group ${sg.GroupId} allows all outbound traffic`,
-                  analysis: 'Unrestricted egress can allow data exfiltration.',
+                  severity: 'critical',
+                  title: `Security Group Allows All Ports from IPv6 Internet: ${sg.GroupName}`,
+                  description: `Security group ${sg.GroupId} allows all ports from ::/0`,
+                  analysis: 'CRITICAL RISK: All ports are exposed to IPv6 internet.',
                   resource_id: sg.GroupId,
                   resource_arn: sgArn,
-                  scan_type: 'ec2_sg_unrestricted_egress',
-                  compliance: [this.wellArchitectedCompliance('SEC', 'Control traffic at all layers')],
-                  evidence: { groupId: sg.GroupId },
-                  risk_vector: 'data_exposure',
+                  scan_type: 'ec2_sg_all_ports_open_ipv6',
+                  compliance: [this.cisCompliance('5.3', 'Ensure no security groups allow ingress from ::/0')],
+                  evidence: { groupId: sg.GroupId, fromPort, toPort, cidr: '::/0' },
+                  risk_vector: 'network_exposure',
                 }));
-                break;
               }
+            }
+          }
+        }
+
+        // Check for unrestricted egress (severity: medium, not low)
+        for (const rule of sg.IpPermissionsEgress || []) {
+          if (rule.IpProtocol === '-1') {
+            const hasUnrestrictedEgress = 
+              (rule.IpRanges || []).some((r: any) => r.CidrIp === '0.0.0.0/0') ||
+              (rule.Ipv6Ranges || []).some((r: any) => r.CidrIpv6 === '::/0');
+            
+            if (hasUnrestrictedEgress) {
+              findings.push(this.createFinding({
+                severity: 'medium',
+                title: `Security Group Has Unrestricted Egress: ${sg.GroupName}`,
+                description: `Security group ${sg.GroupId} allows all outbound traffic to the internet`,
+                analysis: 'Unrestricted egress is the primary vector for data exfiltration and C2 communication from compromised instances. Use VPC Endpoints for AWS services.',
+                resource_id: sg.GroupId,
+                resource_arn: sgArn,
+                scan_type: 'ec2_sg_unrestricted_egress',
+                compliance: [
+                  this.wellArchitectedCompliance('SEC', 'Control traffic at all layers'),
+                  this.nistCompliance('SC-7', 'Boundary Protection'),
+                ],
+                evidence: { groupId: sg.GroupId },
+                risk_vector: 'data_exposure',
+                attack_vectors: ['Data exfiltration', 'C2 communication', 'Cryptomining'],
+              }));
+              break;
             }
           }
         }
@@ -350,7 +420,7 @@ export class EC2Scanner extends BaseScanner {
 
         const snapshotArn = this.arnBuilder.ec2Snapshot(this.region, snapshot.SnapshotId);
 
-        // Check for public snapshots
+        // Check for unencrypted snapshots
         if (snapshot.Encrypted === false) {
           findings.push(this.createFinding({
             severity: 'medium',
@@ -364,6 +434,37 @@ export class EC2Scanner extends BaseScanner {
             evidence: { snapshotId: snapshot.SnapshotId, encrypted: false },
             risk_vector: 'data_exposure',
           }));
+        }
+
+        // Check for public snapshots (createVolumePermission = all)
+        try {
+          const attrResponse = await client.send(new DescribeSnapshotAttributeCommand({
+            SnapshotId: snapshot.SnapshotId,
+            Attribute: 'createVolumePermission',
+          }));
+          const isPublic = (attrResponse.CreateVolumePermissions || []).some(
+            (p: any) => p.Group === 'all'
+          );
+          if (isPublic) {
+            findings.push(this.createFinding({
+              severity: 'critical',
+              title: `EBS Snapshot Is Public: ${snapshot.SnapshotId}`,
+              description: `Snapshot is shared publicly — anyone can create a volume from it`,
+              analysis: 'CRITICAL RISK: Public snapshots expose all data on the volume to any AWS account.',
+              resource_id: snapshot.SnapshotId,
+              resource_arn: snapshotArn,
+              scan_type: 'ec2_snapshot_public',
+              compliance: [
+                this.cisCompliance('2.2.1', 'Ensure EBS snapshots are not publicly restorable'),
+                this.pciCompliance('7.1', 'Limit access to system components'),
+              ],
+              evidence: { snapshotId: snapshot.SnapshotId, permissions: attrResponse.CreateVolumePermissions },
+              risk_vector: 'public_exposure',
+              attack_vectors: ['Data exfiltration', 'Volume cloning'],
+            }));
+          }
+        } catch (e) {
+          this.warn(`Failed to check snapshot attributes: ${snapshot.SnapshotId}`);
         }
       }
     } catch (error) {
