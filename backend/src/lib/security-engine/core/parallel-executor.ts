@@ -62,7 +62,7 @@ export class ParallelExecutor {
       })();
       
       executing.add(task);
-      const cleanup = task.then(() => executing.delete(task));
+      task.then(() => executing.delete(task));
       
       if (executing.size >= concurrency) {
         await Promise.race(executing);
