@@ -4,7 +4,26 @@ inclusion: always
 
 # Deploy & Lambda
 
-## ⛔ NUNCA deploy manual. Todo deploy via CI/CD (commit + push).
+## ⛔ NUNCA deploy manual. Todo deploy via CI/CD (tag + push).
+
+## Deploy por Tags (GitHub Actions → CodePipeline)
+
+O deploy é disparado por tags Git. O GitHub Actions workflow (`deploy-by-tag.yml`) detecta a tag e faz push para o branch correto, que dispara o CodePipeline.
+
+```bash
+# Deploy para Sandbox
+git tag sandbox-v1.2.3
+git push origin sandbox-v1.2.3
+
+# Deploy para Production
+git tag production-v1.2.3
+git push origin production-v1.2.3
+```
+
+| Tag Pattern | Ambiente | Branch Target |
+|-------------|----------|---------------|
+| `sandbox-*` | Sandbox | `sandbox` |
+| `production-*` | Production | `production` |
 
 ## Estratégia de Deploy (SEMPRE FULL_SAM para backend)
 
@@ -15,6 +34,7 @@ inclusion: always
 | `docs/`, `scripts/`, `cicd/`, `.md` | SKIP | ~1min |
 
 Branches: `sandbox` → Sandbox | `production` → Production
+Tags: `sandbox-*` → Sandbox | `production-*` → Production
 
 **NÃO existe deploy incremental.** Todo backend change passa por `sam build` + `sam deploy` com esbuild bundling completo. Isso garante que `@aws-sdk/*` e todas as dependências são corretamente bundled.
 
