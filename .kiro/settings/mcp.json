@@ -8,7 +8,21 @@
         "postgresql://evoadmin:xJB8g6z84PzUYRhWMM8QkkQb@localhost:5433/evouds"
       ],
       "disabled": false,
-      "autoApprove": []
+      "autoApprove": [
+        "query"
+      ]
+    },
+    "postgres-sandbox": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://evoadmin:SandboxEvo2026Safe@evo-uds-v3-sandbox-postgres.csno4kowwmc9.us-east-1.rds.amazonaws.com:5432/evouds"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "query"
+      ]
     }
   }
 }

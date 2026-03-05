@@ -327,12 +327,16 @@ export default function Register() {
       
       let errorMessage = t('register.errors.generic', 'An error occurred. Please try again.');
       
-      if (error.message?.includes('email already exists') || error.message?.includes('UsernameExistsException')) {
-        errorMessage = t('register.errors.emailExists', 'This email is already registered');
-      } else if (error.message?.includes('company already exists')) {
-        errorMessage = t('register.errors.companyExists', 'A company with this tax ID is already registered');
+      if (error.message?.includes('email is already registered') || error.message?.includes('email already exists') || error.message?.includes('UsernameExistsException')) {
+        errorMessage = t('register.errors.emailExists', 'This email is already registered. Please use a different email or login to your existing account.');
+      } else if (error.message?.includes('company with this email') || error.message?.includes('company already exists')) {
+        errorMessage = t('register.errors.companyExists', 'A company with this email is already registered. Please use a different email or contact support.');
+      } else if (error.message?.includes('Too many registration')) {
+        errorMessage = t('register.errors.rateLimited', 'Too many registration attempts. Please try again later.');
       } else if (error.message?.includes('license')) {
         errorMessage = t('register.errors.licenseError', 'Error creating trial license. Please contact support.');
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
       toast({

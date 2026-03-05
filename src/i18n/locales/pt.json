@@ -339,8 +339,9 @@
     "errors": {
       "title": "Falha no cadastro",
       "generic": "Ocorreu um erro. Tente novamente.",
-      "emailExists": "Este e-mail já está cadastrado",
-      "companyExists": "Uma empresa com este CNPJ já está cadastrada",
+      "emailExists": "Este e-mail já está cadastrado. Use outro e-mail ou faça login na sua conta existente.",
+      "companyExists": "Uma empresa com este e-mail já está cadastrada. Use outro e-mail ou entre em contato com o suporte.",
+      "rateLimited": "Muitas tentativas de cadastro. Tente novamente mais tarde.",
       "licenseError": "Erro ao criar licença trial. Entre em contato com o suporte.",
       "termsRequired": "Termos obrigatórios",
       "acceptTerms": "Você deve aceitar os termos de serviço",

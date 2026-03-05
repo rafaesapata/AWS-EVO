@@ -70,8 +70,9 @@
     "errors": {
       "title": "Registration failed",
       "generic": "An error occurred. Please try again.",
-      "emailExists": "This email is already registered",
-      "companyExists": "A company with this EIN is already registered",
+      "emailExists": "This email is already registered. Please use a different email or login to your existing account.",
+      "companyExists": "A company with this email is already registered. Please use a different email or contact support.",
+      "rateLimited": "Too many registration attempts. Please try again later.",
       "licenseError": "Error creating trial license. Please contact support.",
       "termsRequired": "Terms required",
       "acceptTerms": "You must accept the terms of service",
