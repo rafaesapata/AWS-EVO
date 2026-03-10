@@ -57,7 +57,7 @@ VITE_ENVIRONMENT=production
 |---------|-------|
 | RDS Endpoint | `evo-uds-v3-production-postgres.csno4kowwmc9.us-east-1.rds.amazonaws.com` |
 | RDS User/DB | `evoadmin` / `evouds` |
-| RDS Acesso | PubliclyAccessible=false (requer tunnel ou VPN) |
+| RDS Acesso | Via Bastion Server (PubliclyAccessible=false) |
 | Cognito Pool | `us-east-1_PRODUCTION_POOL_ID` |
 | Cognito Client | `PRODUCTION_CLIENT_ID` |
 | API Gateway | TBD / Stage: `prod` |
