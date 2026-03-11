@@ -196,27 +196,54 @@ function analyzeEventRisk(eventName: string, errorCode: string | null, userIdent
   return { level, reasons };
 }
 
-function extractUserInfo(userIdentity: any): { userName: string; userType: string; userArn: string } {
+function extractUserInfo(userIdentity: any): { userName: string; userType: string; userArn: string; isServiceEvent: boolean } {
   let userName = 'Unknown';
   let userType = userIdentity?.type || 'Unknown';
   let userArn = userIdentity?.arn || '';
+  let isServiceEvent = false;
+  
+  // Detect AWS service-invoked events (not real users)
+  if (userIdentity?.type === 'AWSService' || userIdentity?.invokedBy?.endsWith('.amazonaws.com')) {
+    isServiceEvent = true;
+  }
   
   if (userIdentity) {
-    if (userIdentity.userName) {
+    if (userIdentity.type === 'Root') {
+      userName = 'root';
+    } else if (userIdentity.userName) {
       userName = userIdentity.userName;
     } else if (userIdentity.sessionContext?.sessionIssuer?.userName) {
-      userName = userIdentity.sessionContext.sessionIssuer.userName;
+      // AssumedRole - get the role name, and append session name if it looks like a human identifier
+      const roleName = userIdentity.sessionContext.sessionIssuer.userName;
+      if (userIdentity.principalId) {
+        const parts = userIdentity.principalId.split(':');
+        const sessionName = parts.length > 1 ? parts[1] : '';
+        // If session name looks like an email or human name, use it; otherwise use role name
+        if (sessionName && (sessionName.includes('@') || /^[A-Za-z][A-Za-z\s.\-]+$/.test(sessionName))) {
+          userName = sessionName;
+        } else {
+          userName = roleName;
+        }
+      } else {
+        userName = roleName;
+      }
     } else if (userIdentity.principalId) {
       const parts = userIdentity.principalId.split(':');
-      userName = parts.length > 1 ? parts[1] : parts[0];
-    } else if (userIdentity.type === 'Root') {
-      userName = 'root';
+      const candidate = parts.length > 1 ? parts[1] : parts[0];
+      // Avoid using AWS account IDs or random session IDs as user names
+      if (candidate && !/^\d{12}$/.test(candidate) && !candidate.startsWith('i-') && !candidate.endsWith('.amazonaws.com')) {
+        userName = candidate;
+      } else {
+        userName = userIdentity.invokedBy || candidate || 'Unknown';
+        isServiceEvent = true;
+      }
     } else if (userIdentity.invokedBy) {
       userName = userIdentity.invokedBy;
+      isServiceEvent = true;
     }
   }
   
-  return { userName, userType, userArn };
+  return { userName, userType, userArn, isServiceEvent };
 }
 
 // Process a single CloudTrail event
@@ -232,7 +259,7 @@ function processEvent(ctEvent: any, organizationId: string, accountId: string, d
     const errorMessage = eventData.errorMessage || null;
     const sourceIp = eventData.sourceIPAddress || null;
     
-    const { userName, userType, userArn } = extractUserInfo(userIdentity);
+    const { userName, userType, userArn, isServiceEvent } = extractUserInfo(userIdentity);
     const { level: riskLevel, reasons: riskReasons } = analyzeEventRisk(eventName, errorCode, userIdentity);
     
     // Get security explanation and remediation
@@ -248,6 +275,12 @@ function processEvent(ctEvent: any, organizationId: string, accountId: string, d
       resourceName: r.ResourceName,
     })) || [];
     
+    // Use 'AWSService' as user_type for service-invoked events so frontend can filter them
+    // Also detect Lambda/automation session names from sourceIp = AWS Internal
+    const isAutomation = sourceIp === 'AWS Internal' || 
+      (userName.startsWith('sandbox-') || userName.startsWith('production-') || userName.startsWith('staging-') || userName.startsWith('dev-') || /^v\d+-/.test(userName) || userName.startsWith('EVO-') || userName.startsWith('evo-'));
+    const effectiveUserType = (isServiceEvent || isAutomation) ? 'AWSService' : userType;
+    
     return {
       organization_id: organizationId,
       aws_account_id: accountId,
@@ -260,7 +293,7 @@ function processEvent(ctEvent: any, organizationId: string, accountId: string, d
       user_agent: eventData.userAgent || null,
       user_identity: userIdentity,
       user_name: userName,
-      user_type: userType,
+      user_type: effectiveUserType,
       user_arn: userArn,
       error_code: errorCode,
       error_message: errorMessage,

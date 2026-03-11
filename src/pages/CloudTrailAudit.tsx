@@ -408,14 +408,31 @@ export default function CloudTrailAudit() {
       dateEntry[event.risk_level]++;
       dateEntry.total++;
 
-      // By user (only security events)
+      // By user (only security events from real users, not AWS services)
       if (event.is_security_event && event.user_name) {
-        if (!userMap.has(event.user_name)) {
-          userMap.set(event.user_name, { user: event.user_name, critical: 0, high: 0, medium: 0, low: 0, total: 0 });
+        // Filter out AWS service-invoked events and automation/Lambda session names
+        const isAwsService = event.user_type === 'AWSService' || 
+          event.user_name.endsWith('.amazonaws.com') ||
+          event.user_name === 'AWS Internal' ||
+          event.user_name === 'Unknown' ||
+          /^AROA[A-Z0-9]+$/.test(event.user_name) || // AWS role IDs
+          /^\d{12}$/.test(event.user_name) || // AWS account IDs
+          /^(sandbox|production|staging|dev)-/.test(event.user_name) || // Lambda/automation session names (e.g. sandbox-fetch-daily-costs)
+          /^v\d+-/.test(event.user_name) || // Versioned automation (e.g. v3-sandbox-security-scan)
+          /^i-[0-9a-f]+$/.test(event.user_name) || // EC2 instance IDs
+          event.user_name.startsWith('EVO-') || // EVO platform roles
+          event.user_name.startsWith('evo-') ||
+          event.user_name.includes('-fetch-') || // Automation patterns
+          event.user_name.includes('-security-scan');
+        
+        if (!isAwsService) {
+          if (!userMap.has(event.user_name)) {
+            userMap.set(event.user_name, { user: event.user_name, critical: 0, high: 0, medium: 0, low: 0, total: 0 });
+          }
+          const userEntry = userMap.get(event.user_name)!;
+          userEntry[event.risk_level]++;
+          userEntry.total++;
         }
-        const userEntry = userMap.get(event.user_name)!;
-        userEntry[event.risk_level]++;
-        userEntry.total++;
       }
 
       // Risk distribution
@@ -779,16 +796,17 @@ export default function CloudTrailAudit() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="h-5 w-5" />
-                  {t('cloudtrail.usersWithSecurityIssues', 'Users with Security Issues')}
+                  {t('cloudtrail.usersWithSecurityIssues', 'Identities with Security Issues')}
                 </CardTitle>
-                <CardDescription>{t('cloudtrail.top10UsersRisk', 'Top 10 users who performed risky actions')}</CardDescription>
+                <CardDescription>{t('cloudtrail.top10UsersRisk', 'Top 10 IAM users and roles who performed risky actions (excludes AWS service events)')}</CardDescription>
               </CardHeader>
               <CardContent>
+                {chartData.byUser.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={chartData.byUser} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" />
-                    <YAxis dataKey="user" type="category" width={150} />
+                    <YAxis dataKey="user" type="category" width={200} />
                     <Tooltip />
                     <Legend />
                     <Bar dataKey="critical" stackId="a" fill={RISK_COLORS.critical} name={t('cloudtrail.critical', 'Critical')} />
@@ -797,6 +815,14 @@ export default function CloudTrailAudit() {
                     <Bar dataKey="low" stackId="a" fill={RISK_COLORS.low} name={t('cloudtrail.low', 'Low')} />
                   </BarChart>
                 </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                    <div className="text-center">
+                      <Shield className="h-10 w-10 mx-auto mb-2 text-green-500" />
+                      <p>{t('cloudtrail.noUserSecurityEvents', 'No security events from IAM users/roles in this period')}</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
