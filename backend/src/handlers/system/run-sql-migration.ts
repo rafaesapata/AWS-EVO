@@ -11,10 +11,14 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { getUserFromEvent, isSuperAdmin } from '../../lib/auth.js';
 
 // MILITARY GRADE: Only allow specific DDL operations
+// Table names can be quoted ("table_name") or unquoted (table_name)
+const TABLE_NAME = `(?:"?\\w+"?\\.)?"?\\w+"?`;
 const ALLOWED_DDL_PATTERNS = [
-  /^ALTER\s+TABLE\s+\w+\s+ADD\s+COLUMN/i,
-  /^ALTER\s+TABLE\s+\w+\s+DROP\s+COLUMN/i,
-  /^ALTER\s+TABLE\s+\w+\s+ALTER\s+COLUMN/i,
+  new RegExp(`^ALTER\\s+TABLE\\s+${TABLE_NAME}\\s+ADD\\s+COLUMN`, 'i'),
+  new RegExp(`^ALTER\\s+TABLE\\s+${TABLE_NAME}\\s+DROP\\s+COLUMN`, 'i'),
+  new RegExp(`^ALTER\\s+TABLE\\s+${TABLE_NAME}\\s+ALTER\\s+COLUMN`, 'i'),
+  new RegExp(`^ALTER\\s+TABLE\\s+${TABLE_NAME}\\s+ADD\\s+CONSTRAINT`, 'i'),
+  new RegExp(`^ALTER\\s+TABLE\\s+${TABLE_NAME}\\s+DROP\\s+CONSTRAINT`, 'i'),
   /^CREATE\s+INDEX/i,
   /^CREATE\s+UNIQUE\s+INDEX/i,
   /^DROP\s+INDEX/i,
