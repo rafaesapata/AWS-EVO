@@ -479,7 +479,8 @@ async function getBatchMetrics(
     await limiter.acquire();
     try {
       const queries = batch.flatMap((name) => {
-        const fullName = `evo-uds-v3-production-${name}`;
+        const healthPrefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
+        const fullName = `${healthPrefix}-${name}`;
         const safeId = name.replace(/-/g, '_');
         return [
           {
@@ -557,7 +558,8 @@ function buildLambdaHealth(
   metrics: { errors: number; invocations: number },
   now: Date
 ): LambdaHealth {
-  const fullName = `evo-uds-v3-production-${lambdaName}`;
+  const healthPrefix2 = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
+  const fullName = `${healthPrefix2}-${lambdaName}`;
   const issues: string[] = [];
 
   // Calculate error rate

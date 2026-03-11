@@ -18,24 +18,15 @@
 
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding, AzureScanError } from '../types.js';
 import { logger } from '../../../../logging.js';
-import { getGlobalCache, CacheKeys } from '../utils/cache.js';
-import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { CacheKeys } from '../utils/cache.js';
 import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
-import { extractResourceGroup } from '../utils/azure-helpers.js';
+import { extractResourceGroup, fetchAzureSubResource, fetchAzureSubResourceList } from '../utils/azure-helpers.js';
 
 /** Azure Storage API version */
 const STORAGE_API_VERSION = '2023-01-01';
 
 /** Minimum recommended soft delete retention in days */
 const MIN_SOFT_DELETE_RETENTION_DAYS = 7;
-
-/** Build authorization headers for Azure API calls */
-function buildAuthHeaders(accessToken: string): Record<string, string> {
-  return {
-    'Authorization': `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
-  };
-}
 
 interface StorageAccount {
   id: string;
@@ -150,64 +141,30 @@ async function fetchStorageAccounts(context: AzureScanContext): Promise<StorageA
 }
 
 async function fetchBlobServiceProperties(context: AzureScanContext, accountId: string): Promise<BlobServiceProperties | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `blobservice:${accountId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${accountId}/blobServices/default?api-version=${STORAGE_API_VERSION}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: buildAuthHeaders(context.accessToken),
-      }, 'fetchBlobServiceProperties');
-
-      if (!response.ok) return null;
-      return await response.json() as BlobServiceProperties;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<BlobServiceProperties>(
+    context,
+    `https://management.azure.com${accountId}/blobServices/default?api-version=${STORAGE_API_VERSION}`,
+    `blobservice:${accountId}`,
+    'fetchBlobServiceProperties'
+  );
 }
 
 async function fetchBlobContainers(context: AzureScanContext, accountId: string): Promise<BlobContainer[]> {
-  const cache = getGlobalCache();
-  const cacheKey = `containers:${accountId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${accountId}/blobServices/default/containers?api-version=${STORAGE_API_VERSION}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: buildAuthHeaders(context.accessToken),
-      }, 'fetchBlobContainers');
-
-      if (!response.ok) return [];
-      const data = await response.json() as { value?: BlobContainer[] };
-      return data.value || [];
-    } catch {
-      return [];
-    }
-  });
+  return fetchAzureSubResourceList<BlobContainer>(
+    context,
+    `https://management.azure.com${accountId}/blobServices/default/containers?api-version=${STORAGE_API_VERSION}`,
+    `containers:${accountId}`,
+    'fetchBlobContainers'
+  );
 }
 
 async function fetchManagementPolicy(context: AzureScanContext, accountId: string): Promise<ManagementPolicy | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `mgmtpolicy:${accountId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${accountId}/managementPolicies/default?api-version=${STORAGE_API_VERSION}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: buildAuthHeaders(context.accessToken),
-      }, 'fetchManagementPolicy');
-
-      if (!response.ok) return null;
-      return await response.json() as ManagementPolicy;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<ManagementPolicy>(
+    context,
+    `https://management.azure.com${accountId}/managementPolicies/default?api-version=${STORAGE_API_VERSION}`,
+    `mgmtpolicy:${accountId}`,
+    'fetchManagementPolicy'
+  );
 }
 
 export const storageAccountsScanner: AzureScanner = {

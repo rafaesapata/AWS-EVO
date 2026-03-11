@@ -14,8 +14,8 @@
 
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding, AzureScanError } from '../types.js';
 import { logger } from '../../../../logging.js';
-import { getGlobalCache, CacheKeys } from '../utils/cache.js';
-import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { CacheKeys } from '../utils/cache.js';
+import { fetchAzureSubResourceList } from '../utils/azure-helpers.js';
 
 // Configuration constants
 const AZURE_MANAGEMENT_BASE_URL = 'https://management.azure.com';
@@ -112,46 +112,38 @@ interface DefenderPricing {
   };
 }
 
-// Generic fetch helper to reduce duplication
-async function fetchSecurityResource<T>(
-  context: AzureScanContext,
-  resourcePath: string,
-  apiVersion: string,
-  cacheKey: string
-): Promise<T[]> {
-  const cache = getGlobalCache();
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `${AZURE_MANAGEMENT_BASE_URL}/subscriptions/${context.subscriptionId}/providers/Microsoft.Security/${resourcePath}?api-version=${apiVersion}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, `fetchSecurityResource:${resourcePath}`);
-
-      if (!response.ok) return [];
-      const data = await response.json() as { value?: T[] };
-      return data.value || [];
-    } catch {
-      return [];
-    }
-  });
-}
-
+// Typed fetch helpers using shared fetchAzureSubResourceList
 const fetchSecureScores = (context: AzureScanContext) => 
-  fetchSecurityResource<SecureScore>(context, 'secureScores', API_VERSIONS.secureScores, CacheKeys.defenderSecureScores(context.subscriptionId));
+  fetchAzureSubResourceList<SecureScore>(
+    context,
+    `${AZURE_MANAGEMENT_BASE_URL}/subscriptions/${context.subscriptionId}/providers/Microsoft.Security/secureScores?api-version=${API_VERSIONS.secureScores}`,
+    CacheKeys.defenderSecureScores(context.subscriptionId),
+    'fetchSecurityResource:secureScores'
+  );
 
 const fetchAssessments = (context: AzureScanContext) => 
-  fetchSecurityResource<SecurityAssessment>(context, 'assessments', API_VERSIONS.assessments, CacheKeys.defenderAssessments(context.subscriptionId));
+  fetchAzureSubResourceList<SecurityAssessment>(
+    context,
+    `${AZURE_MANAGEMENT_BASE_URL}/subscriptions/${context.subscriptionId}/providers/Microsoft.Security/assessments?api-version=${API_VERSIONS.assessments}`,
+    CacheKeys.defenderAssessments(context.subscriptionId),
+    'fetchSecurityResource:assessments'
+  );
 
 const fetchSecurityAlerts = (context: AzureScanContext) => 
-  fetchSecurityResource<SecurityAlert>(context, 'alerts', API_VERSIONS.alerts, CacheKeys.defenderAlerts(context.subscriptionId));
+  fetchAzureSubResourceList<SecurityAlert>(
+    context,
+    `${AZURE_MANAGEMENT_BASE_URL}/subscriptions/${context.subscriptionId}/providers/Microsoft.Security/alerts?api-version=${API_VERSIONS.alerts}`,
+    CacheKeys.defenderAlerts(context.subscriptionId),
+    'fetchSecurityResource:alerts'
+  );
 
 const fetchDefenderPricing = (context: AzureScanContext) => 
-  fetchSecurityResource<DefenderPricing>(context, 'pricings', API_VERSIONS.pricings, CacheKeys.defenderPricing(context.subscriptionId));
+  fetchAzureSubResourceList<DefenderPricing>(
+    context,
+    `${AZURE_MANAGEMENT_BASE_URL}/subscriptions/${context.subscriptionId}/providers/Microsoft.Security/pricings?api-version=${API_VERSIONS.pricings}`,
+    CacheKeys.defenderPricing(context.subscriptionId),
+    'fetchSecurityResource:pricings'
+  );
 
 // Map Defender severity to EVO severity
 // Assessments marked as 'high' by Microsoft are escalated to CRITICAL for consistency with mapAlertSeverity

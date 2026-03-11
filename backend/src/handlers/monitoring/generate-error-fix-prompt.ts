@@ -64,8 +64,8 @@ Execute este comando para corrigir:
 # Corrigir Lambda: ${ctx.lambdaName}
 npm run build --prefix backend && \\
 rm -rf /tmp/lambda-deploy && mkdir -p /tmp/lambda-deploy && \\
-sed 's|require("../../lib/|require("./lib/|g' backend/dist/handlers/${ctx.category || 'unknown'}/${ctx.handlerFile || ctx.lambdaName?.replace('evo-uds-v3-production-', '')}.js | \\
-sed 's|require("../../types/|require("./types/|g' > /tmp/lambda-deploy/${ctx.handlerFile || ctx.lambdaName?.replace('evo-uds-v3-production-', '')}.js && \\
+sed 's|require("../../lib/|require("./lib/|g' backend/dist/handlers/${ctx.category || 'unknown'}/${ctx.handlerFile || 'unknown'}.js | \\
+sed 's|require("../../types/|require("./types/|g' > /tmp/lambda-deploy/${ctx.handlerFile || 'unknown'}.js && \\
 cp -r backend/dist/lib /tmp/lambda-deploy/ && \\
 cp -r backend/dist/types /tmp/lambda-deploy/ && \\
 cd /tmp/lambda-deploy && zip -r ../lambda.zip . && cd - && \\
@@ -75,7 +75,7 @@ aws lambda update-function-code \\
   --region us-east-1 && \\
 aws lambda update-function-configuration \\
   --function-name ${ctx.lambdaName} \\
-  --handler ${ctx.handlerFile || ctx.lambdaName?.replace('evo-uds-v3-production-', '')}.handler \\
+  --handler ${ctx.handlerFile || 'unknown'}.handler \\
   --region us-east-1
 \`\`\`
 
@@ -141,12 +141,7 @@ aws lambda get-function-configuration \\
 
 ### Passo 2: Atualizar DATABASE_URL (se incorreta)
 
-\`\`\`bash
-aws lambda update-function-configuration \\
-  --function-name ${ctx.lambdaName} \\
-  --environment 'Variables={DATABASE_URL="postgresql://evoadmin:%29V7%3F9ygLec%3FAMSqn%29.UIU4%24vOfRl%2C%24%5EL@evo-uds-v3-production-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com:5432/evouds?schema=public",NODE_PATH="/opt/nodejs/node_modules"}' \\
-  --region us-east-1
-\`\`\`
+Consulte o DATABASE_URL correto para o ambiente atual no AWS Secrets Manager ou na configuração do SAM template.
 
 ### Passo 3: Verificar VPC e Security Group
 
@@ -157,17 +152,16 @@ aws lambda get-function-configuration \\
   --region us-east-1 \\
   --query 'VpcConfig'
 
-# Verificar status do RDS
+# Verificar status do RDS (ajuste o identifier para o ambiente correto)
 aws rds describe-db-instances \\
   --region us-east-1 \\
-  --query 'DBInstances[?DBInstanceIdentifier==\`evo-uds-v3-production-postgres\`].[DBInstanceStatus,Endpoint.Address]'
+  --query 'DBInstances[?starts_with(DBInstanceIdentifier, \`evo-uds-v3\`)].[DBInstanceIdentifier,DBInstanceStatus,Endpoint.Address]'
 \`\`\`
 
 ---
 
 ## 📚 Referência
 - Documentação: .kiro/steering/database-configuration.md
-- Endpoint correto: evo-uds-v3-production-postgres.c070y4ceohf7.us-east-1.rds.amazonaws.com
 
 ## ⏱️ Tempo Estimado
 - Diagnóstico: ~1 minuto
@@ -437,10 +431,11 @@ export async function handler(
     }
 
     // Gerar contexto para o prompt
+    const prefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
     const context = {
       ...errorData,
       category: matchedPattern.category,
-      handlerFile: errorData.lambdaName?.replace('evo-uds-v3-production-', ''),
+      handlerFile: errorData.lambdaName?.replace(`${prefix}-`, ''),
     };
 
     // Gerar prompt específico

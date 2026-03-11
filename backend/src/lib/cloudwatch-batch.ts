@@ -68,7 +68,7 @@ export async function fetchLambdaMetricsBatch(
   lambdaNames: string[],
   startTime: Date,
   endTime: Date,
-  prefix: string = 'evo-uds-v3-production-'
+  prefix: string = `${process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`}-`
 ): Promise<LambdaMetricResult[]> {
   const cacheKey = `lambda-metrics:${startTime.getTime()}:${endTime.getTime()}`;
   
@@ -310,7 +310,7 @@ function getCategoryFromLambdaName(lambdaName: string): string {
 export async function fetchApiGatewayMetrics(
   startTime: Date,
   endTime: Date,
-  apiName: string = 'evo-uds-v3-production-api'
+  apiName: string = `${process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`}-api`
 ): Promise<{ total5xx: number; total4xx: number }> {
   const cacheKey = `apigw-metrics:${startTime.getTime()}:${endTime.getTime()}`;
   

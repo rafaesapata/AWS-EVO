@@ -238,7 +238,7 @@ export async function handler(
       .map(m => {
         const errorRate = m.invocations > 0 ? (m.errors / m.invocations) * 100 : 0;
         return {
-          name: m.lambdaName.replace('evo-uds-v3-production-', ''),
+          name: m.lambdaName.replace(`${process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`}-`, ''),
           avgDuration: m.avgDuration,
           p95: m.p95Duration,
           maxDuration: m.maxDuration || m.p95Duration,
@@ -393,8 +393,9 @@ async function getFrontendErrors(startTime: Date, endTime: Date) {
   }
 
   try {
+    const metricsPrefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
     const command = new FilterLogEventsCommand({
-      logGroupName: '/aws/lambda/evo-uds-v3-production-log-frontend-error',
+      logGroupName: `/aws/lambda/${metricsPrefix}-log-frontend-error`,
       startTime: startTime.getTime(),
       endTime: endTime.getTime(),
       filterPattern: '"ERROR"',

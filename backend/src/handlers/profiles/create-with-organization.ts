@@ -11,6 +11,7 @@ import { getUserFromEvent } from '../../lib/auth.js';
 import { getPrismaClient } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { parseAndValidateBody } from '../../lib/validation.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 import { z } from 'zod';
 
 // Zod schema for create profile with organization
@@ -104,6 +105,17 @@ export async function handler(
       profileId: profile.id,
       organizationId: organization.id,
       organizationName: organization.name,
+    });
+
+    logAuditAsync({
+      organizationId: organization.id,
+      userId,
+      action: 'USER_CREATE',
+      resourceType: 'user',
+      resourceId: profile.id,
+      details: { organizationName: organization.name },
+      ipAddress: getIpFromEvent(event),
+      userAgent: getUserAgentFromEvent(event),
     });
 
     return success({

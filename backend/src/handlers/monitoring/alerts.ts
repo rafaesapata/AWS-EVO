@@ -12,6 +12,7 @@ import { getHttpMethod } from '../../lib/middleware.js';
 import { isOrganizationInDemoMode, generateDemoAlerts, ensureNotDemoMode } from '../../lib/demo-data-service.js';
 import { alertsQuerySchema, alertUpdateSchema, alertDeleteSchema } from '../../lib/schemas.js';
 import { parseAndValidateBody, validateQueryParams } from '../../lib/validation.js';
+import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
 
 export async function handler(
   event: AuthorizedEvent,
@@ -122,6 +123,17 @@ export async function handler(
         data: updateData,
       });
       
+      logAuditAsync({
+        organizationId,
+        userId: user.sub,
+        action: action === 'acknowledge' ? 'ALERT_UPDATE' : 'ALERT_UPDATE',
+        resourceType: 'alert',
+        resourceId: id,
+        details: { action },
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
+      });
+
       logger.info(`✅ Alert ${action}d: ${alert.id}`);
       
       return success(alert, 200, origin);
@@ -163,6 +175,17 @@ export async function handler(
         where: { id: alertId },
       });
       
+      logAuditAsync({
+        organizationId,
+        userId: user.sub,
+        action: 'ALERT_DELETE',
+        resourceType: 'alert',
+        resourceId: alertId,
+        details: {},
+        ipAddress: getIpFromEvent(event),
+        userAgent: getUserAgentFromEvent(event),
+      });
+
       logger.info(`✅ Alert deleted: ${alertId}`);
       
       return success({ success: true, message: 'Alerta deletado com sucesso' }, 200, origin);

@@ -20,10 +20,9 @@
 
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding, AzureScanError } from '../types.js';
 import { logger } from '../../../../logging.js';
-import { getGlobalCache, CacheKeys } from '../utils/cache.js';
-import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { CacheKeys } from '../utils/cache.js';
 import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
-import { extractResourceGroup } from '../utils/azure-helpers.js';
+import { extractResourceGroup, fetchAzureSubResource, fetchAzureSubResourceList } from '../utils/azure-helpers.js';
 
 interface AzureVM {
   id: string;
@@ -146,82 +145,44 @@ const ANTIMALWARE_EXTENSIONS = [
   'MDE.Windows',
 ];
 
+/** Azure Compute API version used across all VM-related calls */
+const AZURE_COMPUTE_API_VERSION = '2023-09-01';
+/** Azure Network API version for NIC/PublicIP lookups */
+const AZURE_NETWORK_API_VERSION = '2023-09-01';
+
 async function fetchVMs(context: AzureScanContext): Promise<AzureVM[]> {
   return fetchAzurePagedList<AzureVM>(
     context,
-    `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-09-01`,
+    `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=${AZURE_COMPUTE_API_VERSION}`,
     { cacheKey: CacheKeys.vms(context.subscriptionId), operationName: 'fetchVMs' }
   );
 }
 
 async function fetchVMExtensions(context: AzureScanContext, vmId: string): Promise<VMExtension[]> {
-  const cache = getGlobalCache();
-  const cacheKey = CacheKeys.vmExtensions(vmId);
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${vmId}/extensions?api-version=2023-09-01`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchVMExtensions');
-
-      if (!response.ok) return [];
-      const data = await response.json() as { value?: VMExtension[] };
-      return data.value || [];
-    } catch {
-      return [];
-    }
-  });
+  return fetchAzureSubResourceList<VMExtension>(
+    context,
+    `https://management.azure.com${vmId}/extensions?api-version=${AZURE_COMPUTE_API_VERSION}`,
+    CacheKeys.vmExtensions(vmId),
+    'fetchVMExtensions'
+  );
 }
 
 async function fetchNetworkInterface(context: AzureScanContext, nicId: string): Promise<NetworkInterface | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `nic:${nicId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${nicId}?api-version=2023-09-01`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchNetworkInterface');
-
-      if (!response.ok) return null;
-      return await response.json() as NetworkInterface;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<NetworkInterface>(
+    context,
+    `https://management.azure.com${nicId}?api-version=${AZURE_NETWORK_API_VERSION}`,
+    `nic:${nicId}`,
+    'fetchNetworkInterface'
+  );
 }
 
 async function fetchPublicIP(context: AzureScanContext, publicIpId: string): Promise<PublicIPAddress | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `publicip:${publicIpId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${publicIpId}?api-version=2023-09-01`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchPublicIP');
-
-      if (!response.ok) return null;
-      return await response.json() as PublicIPAddress;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<PublicIPAddress>(
+    context,
+    `https://management.azure.com${publicIpId}?api-version=${AZURE_NETWORK_API_VERSION}`,
+    `publicip:${publicIpId}`,
+    'fetchPublicIP'
+  );
 }
 
 /** VM context for security checks */

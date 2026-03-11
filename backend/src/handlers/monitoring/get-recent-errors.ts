@@ -243,7 +243,8 @@ export async function handler(
  */
 async function getLambdaErrorsOptimized(startTime: Date, endTime: Date, limit: number): Promise<any[]> {
   const errors: any[] = [];
-  const logGroupPrefix = '/aws/lambda/evo-uds-v3-production-';
+  const monitoringPrefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
+  const logGroupPrefix = `/aws/lambda/${monitoringPrefix}-`;
   
   // OTIMIZAÇÃO: Verificar críticas primeiro, depois outras
   const allLambdas = [...CRITICAL_LAMBDAS, ...OTHER_LAMBDAS];
@@ -304,7 +305,7 @@ async function getLambdaErrorsOptimized(startTime: Date, endTime: Date, limit: n
               errorType,
               message: cleanErrorMessage(message),
               statusCode,
-              lambdaName: `evo-uds-v3-production-${lambdaName}`,
+              lambdaName: `${monitoringPrefix}-${lambdaName}`,
               endpoint: `/api/functions/${lambdaName}`,
               requestId,
             });
@@ -387,8 +388,9 @@ async function getFrontendErrors(startTime: Date, endTime: Date, limit: number) 
   const errors: any[] = [];
 
   try {
+    const fePrefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
     const command = new FilterLogEventsCommand({
-      logGroupName: '/aws/lambda/evo-uds-v3-production-log-frontend-error',
+      logGroupName: `/aws/lambda/${fePrefix}-log-frontend-error`,
       startTime: startTime.getTime(),
       endTime: endTime.getTime(),
       filterPattern: '"errorType"',

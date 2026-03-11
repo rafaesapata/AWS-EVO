@@ -18,7 +18,8 @@ interface RequestBody {
   scanLevel?: 'quick' | 'standard' | 'deep';
 }
 
-const SECURITY_SCAN_LAMBDA = process.env.SECURITY_SCAN_LAMBDA || 'evo-uds-v3-production-security-scan';
+const LAMBDA_PREFIX = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
+const SECURITY_SCAN_LAMBDA = process.env.SECURITY_SCAN_LAMBDA || `${LAMBDA_PREFIX}-security-scan`;
 
 export async function handler(
   event: AuthorizedEvent,

@@ -51,8 +51,9 @@ interface SetupResult {
 // EVO CloudWatch Logs Destination base name for cross-account subscription filters
 // Using Destination instead of direct Lambda ARN is required for cross-account
 // MUST match CloudFormation stack: ${ProjectName}-${Environment}-waf-logs-destination
-const EVO_WAF_DESTINATION_NAME = 'evo-uds-v3-production-waf-logs-destination';
-const EVO_ACCOUNT_ID = '523115032346';
+const EVO_ENV = process.env.ENVIRONMENT || 'production';
+const EVO_WAF_DESTINATION_NAME = process.env.WAF_DESTINATION_NAME || `evo-uds-v3-${EVO_ENV}-waf-logs-destination`;
+const EVO_ACCOUNT_ID = process.env.AWS_ACCOUNT_ID || '523115032346';
 
 // CloudWatch Logs role name — must match CloudFormation template exactly
 const CLOUDWATCH_LOGS_ROLE_NAME = 'EVO-CloudWatch-Logs-Role';
@@ -233,10 +234,11 @@ async function updateDestinationPolicyForCustomer(
 // Replicates cloudformation/waf-logs-destination-stack.yaml via SDK.
 // Only creates resources that are MISSING — never deletes or recreates existing ones.
 
-const WAF_FWD_FUNCTION_PREFIX = 'evo-uds-v3-production-waf-fwd';
-const WAF_DEST_ROLE_PREFIX = 'evo-uds-v3-production-waf-dest';
-const WAF_FWD_ROLE_PREFIX = 'evo-uds-v3-production-waf-fwd';
-const CENTRAL_PROCESSOR_ARN = 'arn:aws:lambda:us-east-1:523115032346:function:evo-uds-v3-production-waf-log-processor';
+const WAF_PREFIX = process.env.LAMBDA_PREFIX || `evo-uds-v3-${EVO_ENV}`;
+const WAF_FWD_FUNCTION_PREFIX = `${WAF_PREFIX}-waf-fwd`;
+const WAF_DEST_ROLE_PREFIX = `${WAF_PREFIX}-waf-dest`;
+const WAF_FWD_ROLE_PREFIX = `${WAF_PREFIX}-waf-fwd`;
+const CENTRAL_PROCESSOR_ARN = process.env.WAF_PROCESSOR_ARN || `arn:aws:lambda:us-east-1:${EVO_ACCOUNT_ID}:function:${WAF_PREFIX}-waf-log-processor`;
 
 /**
  * Auto-provision the WAF logs destination infrastructure in a region if it doesn't exist.
@@ -889,7 +891,7 @@ export const handler = safeHandler(async (
       });
       
       // Fire-and-forget: invoke self asynchronously
-      const selfFunctionName = process.env.AWS_LAMBDA_FUNCTION_NAME || 'evo-uds-v3-production-waf-setup-monitoring';
+      const selfFunctionName = process.env.AWS_LAMBDA_FUNCTION_NAME || `${WAF_PREFIX}-waf-setup-monitoring`;
       const selfClient = new SelfLambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
       
       await selfClient.send(new SelfInvokeCommand({

@@ -139,7 +139,7 @@ const CRITICAL_LAMBDAS: CriticalLambda[] = [
   }
 ];
 
-const FUNCTION_PREFIX = 'evo-uds-v3-production-';
+const FUNCTION_PREFIX = process.env.LAMBDA_PREFIX ? `${process.env.LAMBDA_PREFIX}-` : `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}-`;
 const REGION = process.env.AWS_REGION || 'us-east-1';
 const SNS_TOPIC_ARN = process.env.ALERT_SNS_TOPIC_ARN;
 

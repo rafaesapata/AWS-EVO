@@ -30,7 +30,8 @@ interface ForwardingResult {
 }
 
 // Target Lambda in us-east-1
-const TARGET_LAMBDA = 'evo-uds-v3-production-waf-log-processor';
+const LAMBDA_PREFIX = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
+const TARGET_LAMBDA = process.env.WAF_LOG_PROCESSOR_LAMBDA || `${LAMBDA_PREFIX}-waf-log-processor`;
 const TARGET_REGION = 'us-east-1';
 
 // Lambda client for us-east-1

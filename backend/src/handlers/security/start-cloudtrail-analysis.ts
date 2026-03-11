@@ -336,7 +336,7 @@ export const handler = safeHandler(async (
     };
     
     await lambdaClient.send(new InvokeCommand({
-      FunctionName: process.env.ANALYZE_CLOUDTRAIL_FUNCTION || 'evo-uds-v3-production-analyze-cloudtrail',
+      FunctionName: process.env.ANALYZE_CLOUDTRAIL_FUNCTION || `${process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`}-analyze-cloudtrail`,
       InvocationType: 'Event', // Async invocation
       Payload: Buffer.from(JSON.stringify(payload)),
     }));
