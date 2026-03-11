@@ -2720,6 +2720,7 @@
     "description": "Real-time AWS WAF log monitoring for attack detection",
     "realTimeMonitoring": "Real-Time WAF Monitoring",
     "monitoringDescription": "Continuous AWS WAF log analysis with threat detection and automatic alerts",
+    "checkingConfig": "Checking WAF configuration...",
     "overview": "Overview",
     "events": "Events",
     "blockedIps": "Blocked IPs",

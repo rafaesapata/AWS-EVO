@@ -378,8 +378,15 @@ export default function WafMonitoring() {
           </div>
         )}
 
-        {/* Show Setup Panel if no active config (skip in demo mode) */}
-        {!isDemoMode && !configsLoading && !hasActiveConfig ? (
+        {/* Loading state while checking WAF config */}
+        {!isDemoMode && configsLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 space-y-4">
+            <div className="relative">
+              <ShieldAlert className="h-12 w-12 text-primary animate-pulse" />
+            </div>
+            <p className="text-muted-foreground text-sm">{t('waf.checkingConfig', 'Verificando configuração WAF...')}</p>
+          </div>
+        ) : !isDemoMode && !hasActiveConfig ? (
           <WafSetupPanel 
             onSetupComplete={() => {
               queryClient.invalidateQueries({ queryKey: ['waf-monitoring-configs'] });
