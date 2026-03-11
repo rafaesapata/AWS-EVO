@@ -22,6 +22,8 @@ import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFind
 import { logger } from '../../../../logging.js';
 import { getGlobalCache, CacheKeys } from '../utils/cache.js';
 import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
+import { extractResourceGroup } from '../utils/azure-helpers.js';
 
 interface AzureVM {
   id: string;
@@ -145,35 +147,11 @@ const ANTIMALWARE_EXTENSIONS = [
 ];
 
 async function fetchVMs(context: AzureScanContext): Promise<AzureVM[]> {
-  const cache = getGlobalCache();
-  const cacheKey = CacheKeys.vms(context.subscriptionId);
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const vms: AzureVM[] = [];
-    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-09-01`;
-    let pageCount = 0;
-    const MAX_PAGES = 20;
-    
-    while (url && pageCount < MAX_PAGES) {
-      pageCount++;
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchVMs');
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch VMs: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as { value?: AzureVM[]; nextLink?: string };
-      vms.push(...(data.value || []));
-      url = data.nextLink || null;
-    }
-    
-    return vms;
-  });
+  return fetchAzurePagedList<AzureVM>(
+    context,
+    `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-09-01`,
+    { cacheKey: CacheKeys.vms(context.subscriptionId), operationName: 'fetchVMs' }
+  );
 }
 
 async function fetchVMExtensions(context: AzureScanContext, vmId: string): Promise<VMExtension[]> {
@@ -550,7 +528,7 @@ export const virtualMachinesScanner: AzureScanner = {
       for (const vm of vms) {
         const vmCtx: VMContext = {
           vm,
-          resourceGroup: vm.id?.split('/resourceGroups/')[1]?.split('/')[0] || 'unknown',
+          resourceGroup: extractResourceGroup(vm.id),
           osType: vm.properties?.storageProfile?.osDisk?.osType || 'Unknown',
           region: vm.location,
         };

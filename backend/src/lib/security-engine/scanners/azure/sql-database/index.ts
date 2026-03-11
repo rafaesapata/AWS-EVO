@@ -18,11 +18,13 @@
 
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding, AzureScanError } from '../types.js';
 import { logger } from '../../../../logging.js';
-import { getGlobalCache, CacheKeys } from '../utils/cache.js';
-import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { CacheKeys } from '../utils/cache.js';
+import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
+import { extractResourceGroup, fetchAzureSubResource, fetchAzureSubResourceList } from '../utils/azure-helpers.js';
 
 // Compliance thresholds
 const MIN_AUDIT_RETENTION_DAYS = 90;
+const SQL_API_VERSION = '2023-05-01-preview';
 
 interface SqlServer {
   id: string;
@@ -132,199 +134,43 @@ interface VulnerabilityAssessment {
   };
 }
 
+/** ARM base URL helper */
+const arm = (path: string) => `https://management.azure.com${path}?api-version=${SQL_API_VERSION}`;
+
 async function fetchSqlServers(context: AzureScanContext): Promise<SqlServer[]> {
-  const cache = getGlobalCache();
-  const cacheKey = CacheKeys.sqlServers(context.subscriptionId);
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const servers: SqlServer[] = [];
-    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Sql/servers?api-version=2023-05-01-preview`;
-    let pageCount = 0;
-    const MAX_PAGES = 20;
-    
-    while (url && pageCount < MAX_PAGES) {
-      pageCount++;
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchSqlServers');
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch SQL Servers: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as { value?: SqlServer[]; nextLink?: string };
-      servers.push(...(data.value || []));
-      url = data.nextLink || null;
-    }
-    
-    return servers;
-  });
+  return fetchAzurePagedList<SqlServer>(
+    context,
+    `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Sql/servers?api-version=${SQL_API_VERSION}`,
+    { cacheKey: CacheKeys.sqlServers(context.subscriptionId), operationName: 'fetchSqlServers' }
+  );
 }
 
 async function fetchFirewallRules(context: AzureScanContext, serverId: string): Promise<FirewallRule[]> {
-  const cache = getGlobalCache();
-  const cacheKey = `sql-firewall:${serverId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${serverId}/firewallRules?api-version=2023-05-01-preview`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchFirewallRules');
-
-      if (!response.ok) return [];
-      const data = await response.json() as { value?: FirewallRule[] };
-      return data.value || [];
-    } catch {
-      return [];
-    }
-  });
+  return fetchAzureSubResourceList<FirewallRule>(context, arm(`${serverId}/firewallRules`), `sql-firewall:${serverId}`, 'fetchFirewallRules');
 }
 
 async function fetchDatabases(context: AzureScanContext, serverId: string): Promise<SqlDatabase[]> {
-  const cache = getGlobalCache();
-  const cacheKey = `sql-databases:${serverId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${serverId}/databases?api-version=2023-05-01-preview`;
-  
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchDatabases');
-
-      if (!response.ok) return [];
-      const data = await response.json() as { value?: SqlDatabase[] };
-      return data.value || [];
-    } catch {
-      return [];
-    }
-  });
+  return fetchAzureSubResourceList<SqlDatabase>(context, arm(`${serverId}/databases`), `sql-databases:${serverId}`, 'fetchDatabases');
 }
 
 async function fetchEncryptionProtector(context: AzureScanContext, serverId: string): Promise<EncryptionProtector | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `sql-encryption:${serverId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${serverId}/encryptionProtector/current?api-version=2023-05-01-preview`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchEncryptionProtector');
-
-      if (!response.ok) return null;
-      return await response.json() as EncryptionProtector;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<EncryptionProtector>(context, arm(`${serverId}/encryptionProtector/current`), `sql-encryption:${serverId}`, 'fetchEncryptionProtector');
 }
 
 async function fetchAuditingSettings(context: AzureScanContext, serverId: string): Promise<AuditingSettings | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `sql-auditing:${serverId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${serverId}/auditingSettings/default?api-version=2023-05-01-preview`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchAuditingSettings');
-
-      if (!response.ok) return null;
-      return await response.json() as AuditingSettings;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<AuditingSettings>(context, arm(`${serverId}/auditingSettings/default`), `sql-auditing:${serverId}`, 'fetchAuditingSettings');
 }
 
 async function fetchSecurityAlertPolicy(context: AzureScanContext, serverId: string): Promise<SecurityAlertPolicy | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `sql-alert-policy:${serverId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${serverId}/securityAlertPolicies/Default?api-version=2023-05-01-preview`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchSecurityAlertPolicy');
-
-      if (!response.ok) return null;
-      return await response.json() as SecurityAlertPolicy;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<SecurityAlertPolicy>(context, arm(`${serverId}/securityAlertPolicies/Default`), `sql-alert-policy:${serverId}`, 'fetchSecurityAlertPolicy');
 }
 
 async function fetchVulnerabilityAssessment(context: AzureScanContext, serverId: string): Promise<VulnerabilityAssessment | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `sql-vuln-assessment:${serverId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${serverId}/vulnerabilityAssessments/default?api-version=2023-05-01-preview`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchVulnerabilityAssessment');
-
-      if (!response.ok) return null;
-      return await response.json() as VulnerabilityAssessment;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<VulnerabilityAssessment>(context, arm(`${serverId}/vulnerabilityAssessments/default`), `sql-vuln-assessment:${serverId}`, 'fetchVulnerabilityAssessment');
 }
 
 async function fetchDatabaseTdeStatus(context: AzureScanContext, databaseId: string): Promise<TdeStatus | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `sql-tde:${databaseId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${databaseId}/transparentDataEncryption/current?api-version=2023-05-01-preview`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchDatabaseTdeStatus');
-
-      if (!response.ok) return null;
-      return await response.json() as TdeStatus;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<TdeStatus>(context, arm(`${databaseId}/transparentDataEncryption/current`), `sql-tde:${databaseId}`, 'fetchDatabaseTdeStatus');
 }
 
 export const sqlDatabaseScanner: AzureScanner = {
@@ -343,7 +189,7 @@ export const sqlDatabaseScanner: AzureScanner = {
       resourcesScanned = servers.length;
 
       for (const server of servers) {
-        const resourceGroup = server.id?.split('/resourceGroups/')[1]?.split('/')[0] || 'unknown';
+        const resourceGroup = extractResourceGroup(server.id);
         const props = server.properties;
 
         // Check 1: Public Network Access

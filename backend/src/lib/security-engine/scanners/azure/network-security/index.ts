@@ -19,7 +19,8 @@
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding, AzureScanError } from '../types.js';
 import { logger } from '../../../../logging.js';
 import { getGlobalCache, CacheKeys } from '../utils/cache.js';
-import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
+import { extractResourceGroup } from '../utils/azure-helpers.js';
 
 // Constants
 const AZURE_NETWORK_API_VERSION = '2023-09-01';
@@ -176,87 +177,40 @@ const DANGEROUS_PORTS: Record<string, { port: string; severity: 'CRITICAL' | 'HI
   '2049': { port: '2049', severity: 'HIGH', service: 'NFS' },
 };
 
-// Generic Azure API fetch helper with caching, rate limiting, and pagination
-async function fetchAzureResource<T>(
-  context: AzureScanContext,
-  resourcePath: string,
-  cacheKey: string,
-  throwOnError = false
-): Promise<T[]> {
-  const cache = getGlobalCache();
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const items: T[] = [];
-    let url: string | null = `${AZURE_MANAGEMENT_BASE_URL}/subscriptions/${context.subscriptionId}/providers/${resourcePath}?api-version=${AZURE_NETWORK_API_VERSION}`;
-    let pageCount = 0;
-    const MAX_PAGES = 20; // Safety limit
-    
-    try {
-      while (url && pageCount < MAX_PAGES) {
-        pageCount++;
-        const response = await rateLimitedFetch(url, {
-          headers: {
-            'Authorization': `Bearer ${context.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        }, `fetch-${resourcePath}`);
-
-        if (!response.ok) {
-          if (throwOnError) {
-            throw new Error(`Failed to fetch ${resourcePath}: ${response.status} ${response.statusText}`);
-          }
-          logger.warn(`Failed to fetch ${resourcePath}`, { status: response.status });
-          break;
-        }
-
-        const data = await response.json() as { value?: T[]; nextLink?: string };
-        items.push(...(data.value || []));
-        url = data.nextLink || null;
-      }
-      
-      if (pageCount >= MAX_PAGES) {
-        logger.warn(`fetchAzureResource hit max page limit for ${resourcePath}`, { itemsCollected: items.length });
-      }
-      
-      return items;
-    } catch (err) {
-      if (throwOnError) throw err;
-      logger.warn(`Error fetching ${resourcePath}`, { error: (err as Error).message, itemsCollected: items.length });
-      return items.length > 0 ? items : [];
-    }
-  });
+// Build ARM URL for a resource provider path
+function armUrl(context: AzureScanContext, resourcePath: string): string {
+  return `${AZURE_MANAGEMENT_BASE_URL}/subscriptions/${context.subscriptionId}/providers/${resourcePath}?api-version=${AZURE_NETWORK_API_VERSION}`;
 }
 
 async function fetchNSGs(context: AzureScanContext): Promise<NetworkSecurityGroup[]> {
-  return fetchAzureResource<NetworkSecurityGroup>(
-    context, 
-    'Microsoft.Network/networkSecurityGroups', 
-    CacheKeys.nsgs(context.subscriptionId),
-    true
+  return fetchAzurePagedList<NetworkSecurityGroup>(
+    context,
+    armUrl(context, 'Microsoft.Network/networkSecurityGroups'),
+    { cacheKey: CacheKeys.nsgs(context.subscriptionId), operationName: 'fetchNSGs', throwOnError: true }
   );
 }
 
 async function fetchVNets(context: AzureScanContext): Promise<VirtualNetwork[]> {
-  return fetchAzureResource<VirtualNetwork>(
-    context, 
-    'Microsoft.Network/virtualNetworks',
-    CacheKeys.vnets(context.subscriptionId)
+  return fetchAzurePagedList<VirtualNetwork>(
+    context,
+    armUrl(context, 'Microsoft.Network/virtualNetworks'),
+    { cacheKey: CacheKeys.vnets(context.subscriptionId), operationName: 'fetchVNets' }
   );
 }
 
 async function fetchPublicIPs(context: AzureScanContext): Promise<PublicIPAddress[]> {
-  return fetchAzureResource<PublicIPAddress>(
-    context, 
-    'Microsoft.Network/publicIPAddresses',
-    CacheKeys.publicIps(context.subscriptionId)
+  return fetchAzurePagedList<PublicIPAddress>(
+    context,
+    armUrl(context, 'Microsoft.Network/publicIPAddresses'),
+    { cacheKey: CacheKeys.publicIps(context.subscriptionId), operationName: 'fetchPublicIPs' }
   );
 }
 
 async function fetchAzureFirewalls(context: AzureScanContext): Promise<AzureFirewall[]> {
-  return fetchAzureResource<AzureFirewall>(
-    context, 
-    'Microsoft.Network/azureFirewalls',
-    CacheKeys.firewalls(context.subscriptionId)
+  return fetchAzurePagedList<AzureFirewall>(
+    context,
+    armUrl(context, 'Microsoft.Network/azureFirewalls'),
+    { cacheKey: CacheKeys.firewalls(context.subscriptionId), operationName: 'fetchAzureFirewalls' }
   );
 }
 
@@ -265,10 +219,10 @@ async function fetchFlowLogs(context: AzureScanContext): Promise<FlowLog[]> {
   const cacheKey = CacheKeys.flowLogs(context.subscriptionId);
   
   return cache.getOrFetch(cacheKey, async () => {
-    const watchers = await fetchAzureResource<{ id: string }>(
-      context, 
-      'Microsoft.Network/networkWatchers',
-      CacheKeys.networkWatchers(context.subscriptionId)
+    const watchers = await fetchAzurePagedList<{ id: string }>(
+      context,
+      armUrl(context, 'Microsoft.Network/networkWatchers'),
+      { cacheKey: CacheKeys.networkWatchers(context.subscriptionId), operationName: 'fetchNetworkWatchers' }
     );
     if (watchers.length === 0) return [];
 
@@ -276,18 +230,12 @@ async function fetchFlowLogs(context: AzureScanContext): Promise<FlowLog[]> {
     
     for (const watcher of watchers) {
       try {
-        const flowLogsUrl = `${AZURE_MANAGEMENT_BASE_URL}${watcher.id}/flowLogs?api-version=${AZURE_NETWORK_API_VERSION}`;
-        const response = await rateLimitedFetch(flowLogsUrl, {
-          headers: {
-            'Authorization': `Bearer ${context.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        }, 'fetchFlowLogs');
-
-        if (response.ok) {
-          const data = await response.json() as { value?: FlowLog[] };
-          allFlowLogs.push(...(data.value || []));
-        }
+        const logs = await fetchAzurePagedList<FlowLog>(
+          context,
+          `${AZURE_MANAGEMENT_BASE_URL}${watcher.id}/flowLogs?api-version=${AZURE_NETWORK_API_VERSION}`,
+          { cacheKey: `flowlogs:${watcher.id}`, operationName: 'fetchFlowLogs', throwOnError: false }
+        );
+        allFlowLogs.push(...logs);
       } catch (err) {
         logger.warn('Error fetching flow logs for watcher', { watcherId: watcher.id, error: (err as Error).message });
       }
@@ -317,14 +265,7 @@ function getDestinationPorts(rule: SecurityRule): string[] {
   const ports: string[] = [];
   
   if (rule.properties.destinationPortRange) {
-    if (rule.properties.destinationPortRange === '*') {
-      ports.push('*');
-    } else if (rule.properties.destinationPortRange.includes('-')) {
-      // Port range like "1-65535"
-      ports.push(rule.properties.destinationPortRange);
-    } else {
-      ports.push(rule.properties.destinationPortRange);
-    }
+    ports.push(rule.properties.destinationPortRange);
   }
   
   if (rule.properties.destinationPortRanges) {
@@ -346,11 +287,6 @@ function isPortInRange(port: string, range: string): boolean {
   }
   
   return false;
-}
-
-// Extract resource group from Azure resource ID
-function extractResourceGroup(resourceId: string): string {
-  return resourceId?.split('/resourceGroups/')[1]?.split('/')[0] || 'unknown';
 }
 
 // Special subnets that don't require NSG

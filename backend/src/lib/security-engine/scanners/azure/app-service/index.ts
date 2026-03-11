@@ -15,17 +15,13 @@
 
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding, AzureScanError } from '../types.js';
 import { logger } from '../../../../logging.js';
-import { getGlobalCache, CacheKeys } from '../utils/cache.js';
-import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { CacheKeys } from '../utils/cache.js';
+import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
+import { extractResourceGroup, fetchAzureSubResource } from '../utils/azure-helpers.js';
 
 // Configuration constants
 const AZURE_WEB_API_VERSION = '2023-01-01';
 const MIN_TLS_VERSION = '1.2';
-
-// Helper to extract resource group from Azure resource ID
-function extractResourceGroup(resourceId: string): string {
-  return resourceId?.split('/resourceGroups/')[1]?.split('/')[0] || 'unknown';
-}
 
 interface AppService {
   id: string;
@@ -94,82 +90,81 @@ interface AuthSettings {
   };
 }
 
+interface AppServiceWebConfig {
+  properties?: {
+    remoteDebuggingEnabled?: boolean;
+    httpLoggingEnabled?: boolean;
+    detailedErrorLoggingEnabled?: boolean;
+    requestTracingEnabled?: boolean;
+    ftpsState?: string;
+    minTlsVersion?: string;
+    http20Enabled?: boolean;
+    alwaysOn?: boolean;
+    managedPipelineMode?: string;
+    use32BitWorkerProcess?: boolean;
+    cors?: {
+      allowedOrigins?: string[];
+      supportCredentials?: boolean;
+    };
+    ipSecurityRestrictions?: IpSecurityRestriction[];
+    scmIpSecurityRestrictions?: IpSecurityRestriction[];
+    scmIpSecurityRestrictionsUseMain?: boolean;
+  };
+}
+
+/** Valid Azure managed identity types */
+const MANAGED_IDENTITY_TYPES = ['SystemAssigned', 'UserAssigned', 'SystemAssigned, UserAssigned'] as const;
+
 async function fetchAppServices(context: AzureScanContext): Promise<AppService[]> {
-  const cache = getGlobalCache();
-  const cacheKey = CacheKeys.appServices(context.subscriptionId);
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const apps: AppService[] = [];
-    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Web/sites?api-version=${AZURE_WEB_API_VERSION}`;
-    let pageCount = 0;
-    const MAX_PAGES = 20;
-    
-    while (url && pageCount < MAX_PAGES) {
-      pageCount++;
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchAppServices');
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch App Services: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as { value?: AppService[]; nextLink?: string };
-      apps.push(...(data.value || []));
-      url = data.nextLink || null;
-    }
-    
-    return apps;
-  });
+  return fetchAzurePagedList<AppService>(
+    context,
+    `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Web/sites?api-version=${AZURE_WEB_API_VERSION}`,
+    { cacheKey: CacheKeys.appServices(context.subscriptionId), operationName: 'fetchAppServices' }
+  );
 }
 
 async function fetchAuthSettings(context: AzureScanContext, appId: string): Promise<AuthSettings | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `appservice-auth:${appId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${appId}/config/authsettingsV2?api-version=${AZURE_WEB_API_VERSION}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchAuthSettings');
-
-      if (!response.ok) return null;
-      return await response.json() as AuthSettings;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<AuthSettings>(
+    context,
+    `https://management.azure.com${appId}/config/authsettingsV2?api-version=${AZURE_WEB_API_VERSION}`,
+    `appservice-auth:${appId}`,
+    'fetchAuthSettings'
+  );
 }
 
-async function fetchAppServiceConfig(context: AzureScanContext, appId: string): Promise<any | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `appservice-config:${appId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${appId}/config/web?api-version=${AZURE_WEB_API_VERSION}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchAppServiceConfig');
+async function fetchAppServiceConfig(context: AzureScanContext, appId: string): Promise<AppServiceWebConfig | null> {
+  return fetchAzureSubResource<AppServiceWebConfig>(
+    context,
+    `https://management.azure.com${appId}/config/web?api-version=${AZURE_WEB_API_VERSION}`,
+    `appservice-config:${appId}`,
+    'fetchAppServiceConfig'
+  );
+}
 
-      if (!response.ok) return null;
-      return await response.json();
-    } catch {
-      return null;
-    }
-  });
+/** Creates a finding with common resource fields pre-filled */
+function createFinding(
+  app: AppService,
+  resourceGroup: string,
+  finding: Pick<AzureSecurityFinding, 'severity' | 'title' | 'description' | 'remediation' | 'complianceFrameworks' | 'metadata'>
+): AzureSecurityFinding {
+  return {
+    ...finding,
+    resourceType: 'Microsoft.Web/sites',
+    resourceId: app.id,
+    resourceName: app.name,
+    resourceGroup,
+    region: app.location,
+  };
+}
+
+function hasManagedIdentity(identity?: AppService['identity']): boolean {
+  return !!identity?.type && MANAGED_IDENTITY_TYPES.some(t => identity.type!.includes(t));
+}
+
+function hasEffectiveIpRestrictions(restrictions: IpSecurityRestriction[]): boolean {
+  return restrictions.some(r =>
+    r.action === 'Deny' || (r.action === 'Allow' && r.ipAddress !== 'Any')
+  );
 }
 
 export const appServiceScanner: AzureScanner = {
@@ -209,270 +204,181 @@ export const appServiceScanner: AzureScanner = {
 
         // 1. Check HTTPS Only
         if (!props.httpsOnly) {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'HIGH',
             title: 'App Service HTTPS Only Disabled',
             description: `App Service ${app.name} does not enforce HTTPS-only traffic.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Enable "HTTPS Only" to redirect all HTTP traffic to HTTPS.',
             complianceFrameworks: ['CIS Azure 1.4', 'PCI-DSS', 'LGPD'],
-          });
+          }));
         }
 
         // 2. Check Minimum TLS Version
         const tlsVersion = config.minTlsVersion || props.minTlsVersion;
-        if (!tlsVersion || tlsVersion < MIN_TLS_VERSION) {
-          findings.push({
+        if (!tlsVersion || parseFloat(tlsVersion) < parseFloat(MIN_TLS_VERSION)) {
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'HIGH',
             title: 'App Service Allows Outdated TLS',
             description: `App Service ${app.name} allows TLS versions older than 1.2.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Set minimum TLS version to 1.2 or higher.',
             complianceFrameworks: ['CIS Azure 1.4', 'PCI-DSS'],
             metadata: { currentTlsVersion: tlsVersion },
-          });
+          }));
         }
 
         // 3. Check Managed Identity
-        if (!app.identity || (app.identity.type !== 'SystemAssigned' && app.identity.type !== 'UserAssigned' && app.identity.type !== 'SystemAssigned, UserAssigned')) {
-          findings.push({
+        if (!hasManagedIdentity(app.identity)) {
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'MEDIUM',
             title: 'App Service Without Managed Identity',
             description: `App Service ${app.name} does not have a managed identity configured.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Enable system-assigned or user-assigned managed identity for secure Azure resource access.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 4. Check VNet Integration
         if (!props.virtualNetworkSubnetId) {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'MEDIUM',
             title: 'App Service Without VNet Integration',
             description: `App Service ${app.name} is not integrated with a Virtual Network.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Configure VNet integration for secure access to private resources.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 5. Check FTP State
         const ftpsState = config.ftpsState || props.ftpsState;
         if (ftpsState !== 'Disabled' && ftpsState !== 'FtpsOnly') {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'HIGH',
             title: 'App Service FTP Enabled',
             description: `App Service ${app.name} has insecure FTP enabled (state: ${ftpsState || 'AllAllowed'}).`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Disable FTP or use FTPS only. Prefer deployment via Azure DevOps, GitHub Actions, or ZIP deploy.',
             complianceFrameworks: ['CIS Azure 1.4', 'PCI-DSS'],
             metadata: { ftpsState },
-          });
+          }));
         }
 
         // 6. Check Remote Debugging
         if (config.remoteDebuggingEnabled) {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'HIGH',
             title: 'App Service Remote Debugging Enabled',
             description: `App Service ${app.name} has remote debugging enabled.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Disable remote debugging in production environments.',
             complianceFrameworks: ['CIS Azure 1.4', 'PCI-DSS'],
-          });
+          }));
         }
 
         // 7. Check Authentication
         if (!authSettings?.properties?.enabled) {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'MEDIUM',
             title: 'App Service Authentication Not Configured',
             description: `App Service ${app.name} does not have built-in authentication configured.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Configure App Service Authentication (Easy Auth) or implement custom authentication.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         } else if (authSettings.properties.unauthenticatedClientAction === 'AllowAnonymous') {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'LOW',
             title: 'App Service Allows Anonymous Access',
             description: `App Service ${app.name} authentication allows anonymous requests.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Consider requiring authentication for all requests if appropriate.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 8. Check Client Certificates
         if (!props.clientCertEnabled) {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'LOW',
             title: 'App Service Client Certificates Disabled',
             description: `App Service ${app.name} does not require client certificates.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Consider enabling client certificates for mutual TLS authentication.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 9. Check HTTP/2
         if (!config.http20Enabled) {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'LOW',
             title: 'App Service HTTP/2 Disabled',
             description: `App Service ${app.name} does not have HTTP/2 enabled.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Enable HTTP/2 for improved performance and security.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 10. Check Always On
         if (!config.alwaysOn) {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'LOW',
             title: 'App Service Always On Disabled',
             description: `App Service ${app.name} does not have Always On enabled.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Enable Always On to prevent the app from being unloaded during idle periods.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 11. Check IP Restrictions
         const ipRestrictions = config.ipSecurityRestrictions || [];
-        const hasIpRestrictions = ipRestrictions.some((r: IpSecurityRestriction) => 
-          r.action === 'Deny' || (r.action === 'Allow' && r.ipAddress !== 'Any')
-        );
-
-        if (!hasIpRestrictions && props.publicNetworkAccess !== 'Disabled') {
-          findings.push({
+        if (!hasEffectiveIpRestrictions(ipRestrictions) && props.publicNetworkAccess !== 'Disabled') {
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'MEDIUM',
             title: 'App Service Without IP Restrictions',
             description: `App Service ${app.name} has no IP access restrictions configured.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Configure IP restrictions to limit access to known IP ranges.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 12. Check SCM (Kudu) IP Restrictions
         const scmRestrictions = config.scmIpSecurityRestrictions || [];
-        const hasScmRestrictions = scmRestrictions.some((r: IpSecurityRestriction) => 
-          r.action === 'Deny' || (r.action === 'Allow' && r.ipAddress !== 'Any')
-        );
-
-        if (!hasScmRestrictions && !config.scmIpSecurityRestrictionsUseMain) {
-          findings.push({
+        if (!hasEffectiveIpRestrictions(scmRestrictions) && !config.scmIpSecurityRestrictionsUseMain) {
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'MEDIUM',
             title: 'App Service SCM Without IP Restrictions',
             description: `App Service ${app.name} SCM (Kudu) site has no IP restrictions.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Configure SCM IP restrictions or use main site restrictions.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 13. Check CORS Configuration
-        const cors = config.cors;
-        if (cors?.allowedOrigins?.includes('*')) {
-          findings.push({
+        if (config.cors?.allowedOrigins?.includes('*')) {
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'MEDIUM',
             title: 'App Service CORS Allows All Origins',
             description: `App Service ${app.name} CORS configuration allows all origins (*).`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Restrict CORS to specific trusted origins.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 14. Check 32-bit Worker Process
         if (config.use32BitWorkerProcess) {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'LOW',
             title: 'App Service Using 32-bit Worker',
             description: `App Service ${app.name} is using 32-bit worker process.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Consider using 64-bit worker process for better performance.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
 
         // 15. Check HTTP Logging
         if (!config.httpLoggingEnabled) {
-          findings.push({
+          findings.push(createFinding(app, resourceGroup, {
             severity: 'LOW',
             title: 'App Service HTTP Logging Disabled',
             description: `App Service ${app.name} does not have HTTP logging enabled.`,
-            resourceType: 'Microsoft.Web/sites',
-            resourceId: app.id,
-            resourceName: app.name,
-            resourceGroup,
-            region: app.location,
             remediation: 'Enable HTTP logging for troubleshooting and security monitoring.',
             complianceFrameworks: ['CIS Azure 1.4'],
-          });
+          }));
         }
       }
 

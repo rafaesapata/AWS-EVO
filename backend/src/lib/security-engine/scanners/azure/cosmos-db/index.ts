@@ -13,17 +13,13 @@
 
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding, AzureScanError } from '../types.js';
 import { logger } from '../../../../logging.js';
-import { getGlobalCache, CacheKeys } from '../utils/cache.js';
-import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { CacheKeys } from '../utils/cache.js';
+import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
+import { extractResourceGroup, fetchAzureSubResourceList } from '../utils/azure-helpers.js';
 
 // Configuration constants
 const AZURE_COSMOSDB_API_VERSION = '2023-11-15';
 const MIN_BACKUP_RETENTION_HOURS = 168; // 7 days
-
-// Helper to extract resource group from Azure resource ID
-function extractResourceGroup(resourceId: string): string {
-  return resourceId?.split('/resourceGroups/')[1]?.split('/')[0] || 'unknown';
-}
 
 interface CosmosDBAccount {
   id: string;
@@ -102,59 +98,20 @@ interface PrivateEndpointConnection {
 }
 
 async function fetchCosmosDBAccounts(context: AzureScanContext): Promise<CosmosDBAccount[]> {
-  const cache = getGlobalCache();
-  const cacheKey = CacheKeys.cosmosDb(context.subscriptionId);
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const accounts: CosmosDBAccount[] = [];
-    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.DocumentDB/databaseAccounts?api-version=${AZURE_COSMOSDB_API_VERSION}`;
-    let pageCount = 0;
-    const MAX_PAGES = 20;
-    
-    while (url && pageCount < MAX_PAGES) {
-      pageCount++;
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchCosmosDBAccounts');
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Cosmos DB accounts: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as { value?: CosmosDBAccount[]; nextLink?: string };
-      accounts.push(...(data.value || []));
-      url = data.nextLink || null;
-    }
-    
-    return accounts;
-  });
+  return fetchAzurePagedList<CosmosDBAccount>(
+    context,
+    `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.DocumentDB/databaseAccounts?api-version=${AZURE_COSMOSDB_API_VERSION}`,
+    { cacheKey: CacheKeys.cosmosDb(context.subscriptionId), operationName: 'fetchCosmosDBAccounts' }
+  );
 }
 
 async function fetchPrivateEndpoints(context: AzureScanContext, accountId: string): Promise<PrivateEndpointConnection[]> {
-  const cache = getGlobalCache();
-  const cacheKey = `cosmosdb-pe:${accountId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${accountId}/privateEndpointConnections?api-version=${AZURE_COSMOSDB_API_VERSION}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchCosmosDBPrivateEndpoints');
-
-      if (!response.ok) return [];
-      const data = await response.json() as { value?: PrivateEndpointConnection[] };
-      return data.value || [];
-    } catch {
-      return [];
-    }
-  });
+  return fetchAzureSubResourceList<PrivateEndpointConnection>(
+    context,
+    `https://management.azure.com${accountId}/privateEndpointConnections?api-version=${AZURE_COSMOSDB_API_VERSION}`,
+    `cosmosdb-pe:${accountId}`,
+    'fetchCosmosDBPrivateEndpoints'
+  );
 }
 
 export const cosmosDbScanner: AzureScanner = {

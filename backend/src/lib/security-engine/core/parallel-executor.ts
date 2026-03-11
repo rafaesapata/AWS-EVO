@@ -62,7 +62,7 @@ export class ParallelExecutor {
       })();
       
       executing.add(task);
-      task.then(() => executing.delete(task));
+      task.then(() => executing.delete(task), () => executing.delete(task));
       
       if (executing.size >= concurrency) {
         await Promise.race(executing);

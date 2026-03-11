@@ -7,6 +7,8 @@
 
 export { AzureScannerCache, getGlobalCache, resetGlobalCache, CacheKeys } from './cache.js';
 export { AzureRateLimiter, getGlobalRateLimiter, resetGlobalRateLimiter, rateLimitedFetch } from './rate-limiter.js';
+export { fetchAzurePagedList } from './paginated-fetch.js';
+export { extractResourceGroup, fetchAzureSubResource, fetchAzureSubResourceList } from './azure-helpers.js';
 export {
   type RemediationType,
   type RemediationScript,

@@ -10,9 +10,9 @@
  * - Componentes de trial SÓ renderizam quando isTrialLicense === true E isLoading === false
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
-import { useAuthSafe } from '@/hooks/useAuthSafe';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
 import { apiClient } from '@/integrations/aws/api-client';
+import { cognitoAuth } from '@/integrations/aws/cognito-client-simple';
 
 interface TrialLicenseState {
   /** Se a organização está em período de trial */
@@ -48,6 +48,9 @@ interface TrialLicenseContextType extends TrialLicenseState {
   refreshTrialStatus: () => Promise<void>;
 }
 
+/** Number of days before expiration to show "expiring soon" warning */
+const EXPIRING_SOON_THRESHOLD_DAYS = 7;
+
 const TrialLicenseContext = createContext<TrialLicenseContextType | undefined>(undefined);
 
 /**
@@ -70,7 +73,10 @@ function isLicenseExpired(validUntil: string | null): boolean {
 }
 
 export function TrialLicenseProvider({ children }: { children: ReactNode }) {
-  const { session } = useAuthSafe();
+  // CRITICAL: Use cognitoAuth directly instead of useAuthSafe() to avoid
+  // creating a separate auth state instance that may be out of sync.
+  // This is the same pattern used by DemoModeContext.
+  const hasQueriedBackendRef = useRef(false);
   
   const [state, setState] = useState<Omit<TrialLicenseState, 'daysRemaining' | 'isExpiringSoon' | 'isExpired'>>({
     isTrialLicense: false,
@@ -82,15 +88,30 @@ export function TrialLicenseProvider({ children }: { children: ReactNode }) {
   });
 
   const fetchTrialStatus = useCallback(async () => {
+    // Check session directly from cognitoAuth (single source of truth)
+    let session;
+    try {
+      session = await cognitoAuth.getCurrentSession();
+    } catch {
+      session = null;
+    }
+
     if (!session?.accessToken) {
-      setState({
-        isTrialLicense: false,
-        isLoading: false,
-        isVerified: true,
-        validFrom: null,
-        validUntil: null,
-        licenseKey: null
-      });
+      // Only mark as verified if we previously had a session (logout scenario)
+      if (hasQueriedBackendRef.current) {
+        setState({
+          isTrialLicense: false,
+          isLoading: false,
+          isVerified: true,
+          validFrom: null,
+          validUntil: null,
+          licenseKey: null
+        });
+      } else {
+        // No session yet, stay in loading state
+        // auth-state-changed event will trigger re-fetch once login completes
+        setState(prev => ({ ...prev, isLoading: false }));
+      }
       return;
     }
 
@@ -107,6 +128,8 @@ export function TrialLicenseProvider({ children }: { children: ReactNode }) {
           license_key: string;
         }>;
       }>('validate-license', { body: {} });
+      
+      hasQueriedBackendRef.current = true;
       
       if (response && 'data' in response && response.data?.valid && response.data.licenses?.length) {
         const primaryLicense = response.data.licenses[0];
@@ -140,10 +163,30 @@ export function TrialLicenseProvider({ children }: { children: ReactNode }) {
         licenseKey: null
       });
     }
-  }, [session?.accessToken]);
+  }, []);
 
   useEffect(() => {
     fetchTrialStatus();
+
+    // Handle token changes in storage (multi-tab login/logout)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && (e.key.includes('idToken') || e.key.includes('accessToken'))) {
+        fetchTrialStatus();
+      }
+    };
+
+    // CRITICAL: Listen for auth-state-changed event (dispatched by useAuthSafe after login)
+    // This ensures trial status is fetched immediately after login completes
+    const handleAuthChange = () => {
+      fetchTrialStatus();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('auth-state-changed', handleAuthChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('auth-state-changed', handleAuthChange);
+    };
   }, [fetchTrialStatus]);
 
   const refreshTrialStatus = useCallback(async () => {
@@ -153,7 +196,7 @@ export function TrialLicenseProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo<TrialLicenseContextType>(() => {
     const daysRemaining = calculateDaysRemaining(state.validUntil);
-    const isExpiringSoon = daysRemaining !== null && daysRemaining <= 7;
+    const isExpiringSoon = daysRemaining !== null && daysRemaining <= EXPIRING_SOON_THRESHOLD_DAYS;
     const isExpired = isLicenseExpired(state.validUntil);
     
     return {

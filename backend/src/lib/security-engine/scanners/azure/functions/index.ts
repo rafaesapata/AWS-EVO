@@ -13,19 +13,15 @@
 
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding, AzureScanError } from '../types.js';
 import { logger } from '../../../../logging.js';
-import { getGlobalCache, CacheKeys } from '../utils/cache.js';
-import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { CacheKeys } from '../utils/cache.js';
+import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
+import { extractResourceGroup, fetchAzureSubResource, fetchAzureSubResourceList } from '../utils/azure-helpers.js';
 
 // Configuration constants
 const AZURE_WEB_API_VERSION = '2023-01-01';
 const MIN_TLS_VERSION = '1.2';
 const MIN_NODE_MAJOR_VERSION = 18;
 const VALID_MANAGED_IDENTITY_TYPES = ['SystemAssigned', 'UserAssigned', 'SystemAssigned, UserAssigned'];
-
-// Helper to extract resource group from Azure resource ID
-function extractResourceGroup(resourceId: string): string {
-  return resourceId?.split('/resourceGroups/')[1]?.split('/')[0] || 'unknown';
-}
 
 interface FunctionApp {
   id: string;
@@ -97,83 +93,31 @@ interface PrivateEndpointConnection {
 }
 
 async function fetchFunctionApps(context: AzureScanContext): Promise<FunctionApp[]> {
-  const cache = getGlobalCache();
-  const cacheKey = CacheKeys.functions(context.subscriptionId);
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const apps: FunctionApp[] = [];
-    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Web/sites?api-version=${AZURE_WEB_API_VERSION}`;
-    let pageCount = 0;
-    const MAX_PAGES = 20;
-    
-    while (url && pageCount < MAX_PAGES) {
-      pageCount++;
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchFunctionApps');
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Function Apps: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as { value?: FunctionApp[]; nextLink?: string };
-      apps.push(...(data.value || []));
-      url = data.nextLink || null;
-    }
-    
-    // Filter to only function apps
-    return apps.filter(app => app.kind?.includes('functionapp'));
-  });
+  const allApps = await fetchAzurePagedList<FunctionApp>(
+    context,
+    `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Web/sites?api-version=${AZURE_WEB_API_VERSION}`,
+    { cacheKey: CacheKeys.functions(context.subscriptionId), operationName: 'fetchFunctionApps' }
+  );
+  // Filter to only function apps
+  return allApps.filter(app => app.kind?.includes('functionapp'));
 }
 
 async function fetchAuthSettings(context: AzureScanContext, appId: string): Promise<AuthSettings | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `function-auth:${appId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${appId}/config/authsettingsV2?api-version=${AZURE_WEB_API_VERSION}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchFunctionAuthSettings');
-
-      if (!response.ok) return null;
-      return await response.json() as AuthSettings;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<AuthSettings>(
+    context,
+    `https://management.azure.com${appId}/config/authsettingsV2?api-version=${AZURE_WEB_API_VERSION}`,
+    `function-auth:${appId}`,
+    'fetchFunctionAuthSettings'
+  );
 }
 
 async function fetchPrivateEndpoints(context: AzureScanContext, appId: string): Promise<PrivateEndpointConnection[]> {
-  const cache = getGlobalCache();
-  const cacheKey = `function-pe:${appId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${appId}/privateEndpointConnections?api-version=${AZURE_WEB_API_VERSION}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchFunctionPrivateEndpoints');
-
-      if (!response.ok) return [];
-      const data = await response.json() as { value?: PrivateEndpointConnection[] };
-      return data.value || [];
-    } catch {
-      return [];
-    }
-  });
+  return fetchAzureSubResourceList<PrivateEndpointConnection>(
+    context,
+    `https://management.azure.com${appId}/privateEndpointConnections?api-version=${AZURE_WEB_API_VERSION}`,
+    `function-pe:${appId}`,
+    'fetchFunctionPrivateEndpoints'
+  );
 }
 
 interface FunctionAppWebConfig {
@@ -192,26 +136,12 @@ interface FunctionAppWebConfig {
 }
 
 async function fetchFunctionAppConfig(context: AzureScanContext, appId: string): Promise<FunctionAppWebConfig | null> {
-  const cache = getGlobalCache();
-  const cacheKey = `function-config:${appId}`;
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const url = `https://management.azure.com${appId}/config/web?api-version=${AZURE_WEB_API_VERSION}`;
-    
-    try {
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchFunctionAppConfig');
-
-      if (!response.ok) return null;
-      return await response.json() as FunctionAppWebConfig;
-    } catch {
-      return null;
-    }
-  });
+  return fetchAzureSubResource<FunctionAppWebConfig>(
+    context,
+    `https://management.azure.com${appId}/config/web?api-version=${AZURE_WEB_API_VERSION}`,
+    `function-config:${appId}`,
+    'fetchFunctionAppConfig'
+  );
 }
 
 export const functionsScanner: AzureScanner = {

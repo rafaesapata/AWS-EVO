@@ -20,6 +20,8 @@ import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFind
 import { logger } from '../../../../logging.js';
 import { getGlobalCache, CacheKeys } from '../utils/cache.js';
 import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
+import { extractResourceGroup } from '../utils/azure-helpers.js';
 
 /** Azure Storage API version */
 const STORAGE_API_VERSION = '2023-01-01';
@@ -140,32 +142,11 @@ interface ManagementPolicy {
 }
 
 async function fetchStorageAccounts(context: AzureScanContext): Promise<StorageAccount[]> {
-  const cache = getGlobalCache();
-  const cacheKey = CacheKeys.storageAccounts(context.subscriptionId);
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const accounts: StorageAccount[] = [];
-    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=${STORAGE_API_VERSION}`;
-    let pageCount = 0;
-    const MAX_PAGES = 20;
-    
-    while (url && pageCount < MAX_PAGES) {
-      pageCount++;
-      const response = await rateLimitedFetch(url, {
-        headers: buildAuthHeaders(context.accessToken),
-      }, 'fetchStorageAccounts');
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Storage Accounts: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as { value?: StorageAccount[]; nextLink?: string };
-      accounts.push(...(data.value || []));
-      url = data.nextLink || null;
-    }
-    
-    return accounts;
-  });
+  return fetchAzurePagedList<StorageAccount>(
+    context,
+    `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=${STORAGE_API_VERSION}`,
+    { cacheKey: CacheKeys.storageAccounts(context.subscriptionId), operationName: 'fetchStorageAccounts' }
+  );
 }
 
 async function fetchBlobServiceProperties(context: AzureScanContext, accountId: string): Promise<BlobServiceProperties | null> {
@@ -245,7 +226,7 @@ export const storageAccountsScanner: AzureScanner = {
       resourcesScanned = storageAccounts.length;
 
       for (const account of storageAccounts) {
-        const resourceGroup = account.id?.split('/resourceGroups/')[1]?.split('/')[0] || 'unknown';
+        const resourceGroup = extractResourceGroup(account.id);
         const props = account.properties;
 
         // Check 1: HTTPS Only

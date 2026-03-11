@@ -18,19 +18,15 @@
 
 import type { AzureScanner, AzureScanContext, AzureScanResult, AzureSecurityFinding, AzureScanError } from '../types.js';
 import { logger } from '../../../../logging.js';
-import { getGlobalCache, CacheKeys } from '../utils/cache.js';
-import { rateLimitedFetch } from '../utils/rate-limiter.js';
+import { CacheKeys } from '../utils/cache.js';
+import { fetchAzurePagedList } from '../utils/paginated-fetch.js';
+import { extractResourceGroup } from '../utils/azure-helpers.js';
 
 // Configuration constants
 const AKS_API_VERSION = '2024-01-01';
 const MIN_KUBERNETES_MAJOR_VERSION = 1;
 const MIN_KUBERNETES_MINOR_VERSION = 29; // AKS minimum supported as of March 2026 (1.27 EOL Nov 2024, 1.28 EOL Mar 2025)
 const MIN_AVAILABILITY_ZONES = 2;
-
-// Helper to extract resource group from Azure resource ID
-function extractResourceGroup(resourceId: string): string {
-  return resourceId?.split('/resourceGroups/')[1]?.split('/')[0] || 'unknown';
-}
 
 // Common finding metadata builder
 function buildClusterFindingBase(cluster: AKSCluster, resourceGroup: string) {
@@ -143,35 +139,11 @@ interface AgentPoolProfile {
 }
 
 async function fetchAKSClusters(context: AzureScanContext): Promise<AKSCluster[]> {
-  const cache = getGlobalCache();
-  const cacheKey = CacheKeys.aksCluster(context.subscriptionId);
-  
-  return cache.getOrFetch(cacheKey, async () => {
-    const clusters: AKSCluster[] = [];
-    let url: string | null = `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.ContainerService/managedClusters?api-version=${AKS_API_VERSION}`;
-    let pageCount = 0;
-    const MAX_PAGES = 20;
-    
-    while (url && pageCount < MAX_PAGES) {
-      pageCount++;
-      const response = await rateLimitedFetch(url, {
-        headers: {
-          'Authorization': `Bearer ${context.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }, 'fetchAKSClusters');
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch AKS clusters: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as { value?: AKSCluster[]; nextLink?: string };
-      clusters.push(...(data.value || []));
-      url = data.nextLink || null;
-    }
-    
-    return clusters;
-  });
+  return fetchAzurePagedList<AKSCluster>(
+    context,
+    `https://management.azure.com/subscriptions/${context.subscriptionId}/providers/Microsoft.ContainerService/managedClusters?api-version=${AKS_API_VERSION}`,
+    { cacheKey: CacheKeys.aksCluster(context.subscriptionId), operationName: 'fetchAKSClusters' }
+  );
 }
 
 /**
