@@ -20,6 +20,7 @@ import {
   validateTicketOwnership,
 } from '../../lib/ticket-workflow.js';
 import { logAuditAsync, getIpFromEvent, getUserAgentFromEvent } from '../../lib/audit-service.js';
+import { notifyTicketWatchers } from '../../lib/ticket-notifications.js';
 
 // ==================== SCHEMAS ====================
 
@@ -262,16 +263,12 @@ export async function handler(
         'commented', undefined, undefined, undefined, content.substring(0, 200)
       );
 
-      // Notify watchers of new comment (fire-and-forget)
-      getWatcherRecipients(prisma, ticketId, organizationId, 'commented', user.sub)
-        .then(recipients => {
-          if (recipients.length > 0) {
-            logger.info('Watcher notification targets for comment', {
-              ticketId, recipients: recipients.map(r => r.email), isInternal,
-            });
-          }
-        })
-        .catch(err => logger.warn('Watcher notification lookup failed', { error: (err as Error).message }));
+      // Notify watchers of new comment
+      notifyTicketWatchers(prisma, {
+        ticketId, ticketTitle: ticket.title, organizationId,
+        eventType: 'commented', actorName: user.name || user.email, actorUserId: user.sub,
+        details: { comment: content.substring(0, 300) },
+      });
 
       return success({ comment, message: 'Comment added successfully' });
     }
@@ -830,16 +827,12 @@ export async function handler(
         'status_changed', 'status', oldStatus, status, comment
       );
 
-      // Notify watchers (fire-and-forget)
-      getWatcherRecipients(prisma, ticketId, organizationId, 'status_changed', user.sub)
-        .then(recipients => {
-          if (recipients.length > 0) {
-            logger.info('Watcher notification targets for status change', {
-              ticketId, recipients: recipients.map(r => r.email), oldStatus, newStatus: status,
-            });
-          }
-        })
-        .catch(err => logger.warn('Watcher notification lookup failed', { error: (err as Error).message }));
+      // Notify watchers of status change
+      notifyTicketWatchers(prisma, {
+        ticketId, ticketTitle: ticket.title, organizationId,
+        eventType: 'status_changed', actorName: user.name || user.email, actorUserId: user.sub,
+        details: { oldValue: oldStatus, newValue: status, comment },
+      });
 
       logAuditAsync({
         organizationId, userId: user.sub, action: 'TICKET_UPDATE',
@@ -1317,6 +1310,221 @@ export async function handler(
       return success({
         match: { ...match, assigneeName: profile?.full_name, assigneeEmail: profile?.email },
         message: `Would assign to ${profile?.full_name || match.assignTo} via rule "${match.ruleName}"`,
+      });
+    }
+
+    // ==================== LIST TICKETS (Advanced Filtering + Pagination) ====================
+
+    if (action === 'list-tickets') {
+      const {
+        status: filterStatus, priority: filterPriority, severity: filterSeverity,
+        assignedTo: filterAssignedTo, createdBy: filterCreatedBy, category: filterCategory,
+        slaBreach: filterSlaBreach, search: filterSearch,
+        sortBy = 'created_at', sortOrder = 'desc',
+        cursor, limit: pageLimit,
+      } = body;
+
+      const take = Math.min(pageLimit || 25, 100);
+
+      const where: any = { organization_id: organizationId };
+
+      if (filterStatus) {
+        where.status = Array.isArray(filterStatus) ? { in: filterStatus } : filterStatus;
+      }
+      if (filterPriority) {
+        where.priority = Array.isArray(filterPriority) ? { in: filterPriority } : filterPriority;
+      }
+      if (filterSeverity) {
+        where.severity = Array.isArray(filterSeverity) ? { in: filterSeverity } : filterSeverity;
+      }
+      if (filterAssignedTo) {
+        where.assigned_to = filterAssignedTo === 'unassigned' ? null : filterAssignedTo;
+      }
+      if (filterCreatedBy) where.created_by = filterCreatedBy;
+      if (filterCategory) where.category = filterCategory;
+      if (filterSlaBreach === true) where.sla_breached = true;
+      if (filterSearch && typeof filterSearch === 'string' && filterSearch.trim().length >= 2) {
+        where.title = { contains: filterSearch.trim(), mode: 'insensitive' };
+      }
+
+      // Cursor-based pagination
+      const queryOptions: any = {
+        where,
+        take: take + 1, // fetch one extra to determine hasMore
+        orderBy: { [sortBy]: sortOrder },
+        select: {
+          id: true, title: true, status: true, priority: true, severity: true, category: true,
+          assigned_to: true, created_by: true, created_at: true, updated_at: true,
+          sla_breached: true, sla_due_at: true, escalation_level: true,
+          finding_ids: true, due_date: true,
+        },
+      };
+
+      if (cursor) {
+        queryOptions.cursor = { id: cursor };
+        queryOptions.skip = 1; // skip the cursor itself
+      }
+
+      const tickets = await prisma.remediationTicket.findMany(queryOptions);
+
+      const hasMore = tickets.length > take;
+      const results = hasMore ? tickets.slice(0, take) : tickets;
+      const nextCursor = hasMore ? results[results.length - 1].id : null;
+
+      // Get total count for the filter
+      const totalCount = await prisma.remediationTicket.count({ where });
+
+      return success({ tickets: results, totalCount, hasMore, nextCursor });
+    }
+
+    // ==================== TICKET METRICS / DASHBOARD ====================
+
+    if (action === 'get-ticket-metrics') {
+      const { periodDays = 30 } = body;
+      const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+
+      // Status distribution
+      const statusCounts = await prisma.remediationTicket.groupBy({
+        by: ['status'],
+        where: { organization_id: organizationId },
+        _count: { id: true },
+      });
+
+      // Priority distribution
+      const priorityCounts = await prisma.remediationTicket.groupBy({
+        by: ['priority'],
+        where: { organization_id: organizationId },
+        _count: { id: true },
+      });
+
+      // Severity distribution
+      const severityCounts = await prisma.remediationTicket.groupBy({
+        by: ['severity'],
+        where: { organization_id: organizationId },
+        _count: { id: true },
+      });
+
+      // MTTR by severity (resolved tickets in period)
+      const resolvedTickets = await prisma.remediationTicket.findMany({
+        where: {
+          organization_id: organizationId,
+          resolved_at: { gte: since },
+          time_to_resolution: { not: null },
+        },
+        select: { severity: true, time_to_resolution: true },
+      });
+
+      const mttrBySeverity: Record<string, { avgMinutes: number; count: number }> = {};
+      const severityGroups: Record<string, number[]> = {};
+      for (const t of resolvedTickets) {
+        if (!severityGroups[t.severity]) severityGroups[t.severity] = [];
+        severityGroups[t.severity].push(t.time_to_resolution!);
+      }
+      for (const [sev, times] of Object.entries(severityGroups)) {
+        const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
+        mttrBySeverity[sev] = { avgMinutes: avg, count: times.length };
+      }
+
+      // Created vs resolved in period
+      const createdInPeriod = await prisma.remediationTicket.count({
+        where: { organization_id: organizationId, created_at: { gte: since } },
+      });
+      const resolvedInPeriod = await prisma.remediationTicket.count({
+        where: { organization_id: organizationId, resolved_at: { gte: since } },
+      });
+
+      // SLA compliance rate
+      const totalWithSla = await prisma.remediationTicket.count({
+        where: {
+          organization_id: organizationId,
+          sla_policy_id: { not: null },
+          status: { in: ['resolved', 'closed'] },
+          resolved_at: { gte: since },
+        },
+      });
+      const breachedWithSla = await prisma.remediationTicket.count({
+        where: {
+          organization_id: organizationId,
+          sla_policy_id: { not: null },
+          sla_breached: true,
+          status: { in: ['resolved', 'closed'] },
+          resolved_at: { gte: since },
+        },
+      });
+      const slaComplianceRate = totalWithSla > 0
+        ? Math.round(((totalWithSla - breachedWithSla) / totalWithSla) * 10000) / 100
+        : null;
+
+      // Workload by assignee (open tickets)
+      const workloadByAssignee = await prisma.remediationTicket.groupBy({
+        by: ['assigned_to'],
+        where: {
+          organization_id: organizationId,
+          status: { notIn: ['resolved', 'closed', 'cancelled'] },
+          assigned_to: { not: null },
+        },
+        _count: { id: true },
+      });
+
+      // Enrich assignee names
+      const assigneeIds = workloadByAssignee.map((w: any) => w.assigned_to).filter(Boolean);
+      const assigneeProfiles = assigneeIds.length > 0
+        ? await prisma.profile.findMany({
+            where: { id: { in: assigneeIds }, organization_id: organizationId },
+            select: { id: true, full_name: true, email: true },
+          })
+        : [];
+      const profileMap = new Map(assigneeProfiles.map((p: any) => [p.id, p]));
+
+      const workload = workloadByAssignee.map((w: any) => {
+        const profile = profileMap.get(w.assigned_to);
+        return {
+          assigneeId: w.assigned_to,
+          assigneeName: profile?.full_name || profile?.email || w.assigned_to,
+          openTickets: w._count.id,
+        };
+      });
+
+      // Aging: open tickets by age bucket
+      const openTickets = await prisma.remediationTicket.findMany({
+        where: {
+          organization_id: organizationId,
+          status: { notIn: ['resolved', 'closed', 'cancelled'] },
+        },
+        select: { created_at: true },
+      });
+
+      const nowMs = Date.now();
+      const aging = { under24h: 0, under7d: 0, under30d: 0, over30d: 0 };
+      for (const t of openTickets) {
+        const ageHours = (nowMs - new Date(t.created_at).getTime()) / (1000 * 60 * 60);
+        if (ageHours < 24) aging.under24h++;
+        else if (ageHours < 168) aging.under7d++;
+        else if (ageHours < 720) aging.under30d++;
+        else aging.over30d++;
+      }
+
+      // Currently breached (open + breached)
+      const currentlyBreached = await prisma.remediationTicket.count({
+        where: {
+          organization_id: organizationId,
+          sla_breached: true,
+          status: { notIn: ['resolved', 'closed', 'cancelled'] },
+        },
+      });
+
+      return success({
+        period: { days: periodDays, since: since.toISOString() },
+        statusDistribution: statusCounts.map((s: any) => ({ status: s.status, count: s._count.id })),
+        priorityDistribution: priorityCounts.map((p: any) => ({ priority: p.priority, count: p._count.id })),
+        severityDistribution: severityCounts.map((s: any) => ({ severity: s.severity, count: s._count.id })),
+        mttrBySeverity,
+        createdVsResolved: { created: createdInPeriod, resolved: resolvedInPeriod },
+        slaCompliance: { rate: slaComplianceRate, total: totalWithSla, breached: breachedWithSla },
+        currentlyBreached,
+        workload,
+        aging,
+        totalOpen: openTickets.length,
       });
     }
 

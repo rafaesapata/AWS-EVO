@@ -73,11 +73,21 @@ export const handler = safeHandler(async (
         resource_id: true,
         service: true,
         category: true,
+        remediation_ticket_id: true,
       }
     });
 
     if (findings.length !== findingIds.length) {
       return badRequest('Some findings not found or do not belong to your organization', undefined, origin);
+    }
+
+    // Check for findings that already have an open remediation ticket
+    const findingsWithTicket = findings.filter((f: any) => f.remediation_ticket_id);
+    if (findingsWithTicket.length > 0) {
+      return badRequest(
+        `${findingsWithTicket.length} finding(s) already linked to existing ticket(s). Remove them or close existing tickets first.`,
+        undefined, origin
+      );
     }
 
     // Calculate priority based on findings if not explicitly set
@@ -133,17 +143,17 @@ export const handler = safeHandler(async (
       }
     });
 
-    // Update findings to reference the ticket (remove this for now since we need migration)
-    // await prisma.finding.updateMany({
-    //   where: {
-    //     id: { in: findingIds },
-    //     organization_id: organizationId,
-    //   },
-    //   data: {
-    //     status: 'in_progress',
-    //     remediation_ticket_id: ticket.id,
-    //   }
-    // });
+    // Update findings to reference the ticket and mark as in_progress
+    await prisma.finding.updateMany({
+      where: {
+        id: { in: findingIds },
+        organization_id: organizationId,
+      },
+      data: {
+        status: 'in_progress',
+        remediation_ticket_id: ticket.id,
+      },
+    });
 
     logger.info('Remediation ticket created successfully', {
       organizationId,

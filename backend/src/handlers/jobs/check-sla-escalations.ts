@@ -164,17 +164,59 @@ export async function handler(
         for (const ticket of ticketsToEscalate) {
           const newLevel = ticket.escalation_level + 1;
 
+          const escalationUpdateData: any = {
+            escalation_level: newLevel,
+            escalated_at: now,
+          };
+
+          // Re-assign ticket to escalation_to user if configured and different from current assignee
+          let reassignedTo: string | null = null;
+          if (policy.escalation_to && policy.escalation_to !== ticket.assigned_to) {
+            escalationUpdateData.assigned_to = policy.escalation_to;
+            reassignedTo = policy.escalation_to;
+          }
+
           await prisma.remediationTicket.update({
             where: { id: ticket.id },
-            data: {
-              escalation_level: newLevel,
-              escalated_at: now,
-            },
+            data: escalationUpdateData,
           });
 
+          // Record escalation history
           await recordHistory(prisma, ticket.id, 'escalated', 'escalation_level',
             String(ticket.escalation_level), String(newLevel),
             `Escalated to level ${newLevel} (policy: ${policy.name}, ${policy.escalation_after_minutes}min past breach)`);
+
+          // Record re-assignment history if applicable
+          if (reassignedTo) {
+            const escalationProfile = await prisma.profile.findFirst({
+              where: { id: reassignedTo, organization_id: organizationId },
+              select: { full_name: true, email: true },
+            });
+            const assigneeName = escalationProfile?.full_name || reassignedTo;
+
+            await recordHistory(prisma, ticket.id, 'assigned', 'assigned_to',
+              ticket.assigned_to || 'unassigned', assigneeName,
+              `Auto-reassigned via SLA escalation level ${newLevel} (policy: ${policy.name})`);
+
+            // Auto-watch the new assignee
+            if (escalationProfile?.email) {
+              try {
+                await prisma.ticketWatcher.upsert({
+                  where: { ticket_id_user_id: { ticket_id: ticket.id, user_id: reassignedTo } },
+                  create: {
+                    ticket_id: ticket.id,
+                    user_id: reassignedTo,
+                    user_name: escalationProfile.full_name,
+                    user_email: escalationProfile.email,
+                    watch_type: 'all',
+                  },
+                  update: {},
+                });
+              } catch (_watchErr) {
+                // non-critical
+              }
+            }
+          }
 
           await sendSlaEmail(emailService, prisma, organizationId, policy, ticket, 'escalation', newLevel, results);
           results.escalations++;
