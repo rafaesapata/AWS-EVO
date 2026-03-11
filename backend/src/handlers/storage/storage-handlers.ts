@@ -13,7 +13,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } fro
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
-const DEFAULT_BUCKET = process.env.S3_BUCKET || 'evo-uds-v3-sandbox-attachments-971354623291';
+const DEFAULT_BUCKET = process.env.S3_BUCKET || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}-attachments-${process.env.AWS_ACCOUNT_ID || ''}`;
 
 // Zod schemas for storage operations
 const uploadRequestSchema = z.object({

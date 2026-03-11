@@ -1567,7 +1567,7 @@ async function handleDiagnose(
       );
       
       const wafPrefix = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
-      const evoDestinationArn = `arn:aws:logs:${region}:${process.env.AWS_ACCOUNT_ID || '523115032346'}:destination:${wafPrefix}-waf-logs-destination`;
+      const evoDestinationArn = `arn:aws:logs:${region}:${process.env.AWS_ACCOUNT_ID || ''}:destination:${wafPrefix}-waf-logs-destination`;
       
       if (filtersResponse.subscriptionFilters && filtersResponse.subscriptionFilters.length > 0) {
         const evoFilter = filtersResponse.subscriptionFilters.find(
@@ -1796,7 +1796,7 @@ async function handleFixSubscription(
     
     const wafPrefix2 = process.env.LAMBDA_PREFIX || `evo-uds-v3-${process.env.ENVIRONMENT || 'sandbox'}`;
     const evoFilterName = 'evo-waf-monitoring';
-    const evoDestinationArn = `arn:aws:logs:${region}:${process.env.AWS_ACCOUNT_ID || '523115032346'}:destination:${wafPrefix2}-waf-logs-destination`;
+    const evoDestinationArn = `arn:aws:logs:${region}:${process.env.AWS_ACCOUNT_ID || ''}:destination:${wafPrefix2}-waf-logs-destination`;
     
     // Check if EVO filter already exists
     const existingEvoFilter = existingFilters.subscriptionFilters?.find(

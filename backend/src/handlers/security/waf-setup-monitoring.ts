@@ -53,7 +53,7 @@ interface SetupResult {
 // MUST match CloudFormation stack: ${ProjectName}-${Environment}-waf-logs-destination
 const EVO_ENV = process.env.ENVIRONMENT || 'production';
 const EVO_WAF_DESTINATION_NAME = process.env.WAF_DESTINATION_NAME || `evo-uds-v3-${EVO_ENV}-waf-logs-destination`;
-const EVO_ACCOUNT_ID = process.env.AWS_ACCOUNT_ID || '523115032346';
+const EVO_ACCOUNT_ID = process.env.AWS_ACCOUNT_ID || '';
 
 // CloudWatch Logs role name — must match CloudFormation template exactly
 const CLOUDWATCH_LOGS_ROLE_NAME = 'EVO-CloudWatch-Logs-Role';

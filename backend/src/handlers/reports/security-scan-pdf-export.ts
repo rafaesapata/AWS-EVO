@@ -95,7 +95,7 @@ export async function handler(
     );
 
     // Upload para S3
-    const bucket = process.env.REPORTS_BUCKET || 'evo-uds-reports-971354623291';
+    const bucket = process.env.REPORTS_BUCKET || `evo-uds-reports-${process.env.AWS_ACCOUNT_ID || ''}`;
     const timestamp = Date.now();
     const key = `security-reports/${organizationId}/${scanId}/${timestamp}-report.pdf`;
 

@@ -488,7 +488,7 @@ export class ApiStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/dist')),
       environment: {
         ...lambdaEnvironment,
-        ANALYZE_CLOUDTRAIL_FUNCTION: 'evo-uds-v3-production-analyze-cloudtrail',
+        ANALYZE_CLOUDTRAIL_FUNCTION: `evo-uds-v3-${process.env.ENVIRONMENT || 'production'}-analyze-cloudtrail`,
       },
       role: lambdaRole,
       vpc: props.vpc,
