@@ -5505,6 +5505,27 @@ Resources:
         External:
           - '@prisma/client'
           - '.prisma/client'
+  # TEMPORARY — Delete after migration is applied
+  ApplyHealthMigrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-apply-health-migration'
+      CodeUri: ../backend/src/handlers/system/
+      Handler: apply-health-migration.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - apply-health-migration.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
   # ==========================================================================
   # USER FUNCTIONS (1)
   # ==========================================================================
