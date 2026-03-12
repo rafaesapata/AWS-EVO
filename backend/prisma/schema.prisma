@@ -56,6 +56,8 @@ model Organization {
   tags              Tag[]
   resource_tag_assignments ResourceTagAssignment[]
   tag_auto_rules    TagAutoRule[]
+  aws_health_events    AwsHealthEvent[]
+  health_monitoring_config HealthMonitoringConfig?
   
   @@index([demo_mode])
   @@index([status])
@@ -976,6 +978,7 @@ model CloudTrailEvent {
   
   @@unique([organization_id, event_id])
   @@index([organization_id])
+  @@index([organization_id, event_time])
   @@index([aws_account_id])
   @@index([event_time])
   @@index([event_name])
@@ -2788,4 +2791,53 @@ model ResourceTagAssignment {
   @@index([organization_id, resource_type, cloud_provider])
   @@index([resource_id])
   @@map("resource_tag_assignments")
+}
+
+// ==================== AWS HEALTH EVENTS MONITORING ====================
+
+model AwsHealthEvent {
+  id                      String    @id @default(uuid()) @db.Uuid
+  organization_id         String    @db.Uuid
+  event_arn               String
+  type_code               String
+  category                String
+  region                  String
+  start_time              DateTime  @db.Timestamptz(6)
+  end_time                DateTime? @db.Timestamptz(6)
+  status_code             String
+  description             String?   @db.Text
+  aws_account_id          String
+  severity                String
+  is_credential_exposure  Boolean   @default(false)
+  remediation_ticket_id   String?   @db.Uuid
+  metadata                Json?
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization            Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_arn, organization_id])
+  @@index([organization_id])
+  @@index([severity])
+  @@index([status_code])
+  @@index([aws_account_id])
+  @@index([is_credential_exposure])
+  @@index([organization_id, status_code])
+  @@index([organization_id, severity])
+  @@map("aws_health_events")
+}
+
+model HealthMonitoringConfig {
+  id                        String   @id @default(uuid()) @db.Uuid
+  organization_id           String   @unique @db.Uuid
+  enabled                   Boolean  @default(true)
+  auto_ticket_severities    String[] @default(["critical", "high"])
+  polling_frequency_minutes Int      @default(15)
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+
+  organization              Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@index([organization_id])
+  @@map("health_monitoring_configs")
 }

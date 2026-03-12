@@ -3626,7 +3626,7 @@ Resources:
           - '@prisma/client'
           - '.prisma/client'
   # ==========================================================================
-  # MONITORING FUNCTIONS (17)
+  # MONITORING FUNCTIONS (22)
   # ==========================================================================
   AlertsFunction:
     Type: AWS::Serverless::Function
@@ -4052,6 +4052,148 @@ Resources:
         Sourcemap: false
         EntryPoints:
           - test-lambda-metrics.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+  # ---------- AWS Health Monitoring ----------
+  HealthMonitorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-health-monitor'
+      CodeUri: ../backend/src/handlers/monitoring/
+      Handler: health-monitor.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/health-monitor
+            Method: POST
+        HealthMonitorSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Description: Poll AWS Health API for new events
+            Enabled: true
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - health-monitor.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+  GetHealthEventsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-health-events'
+      CodeUri: ../backend/src/handlers/monitoring/
+      Handler: get-health-events.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/get-health-events
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - get-health-events.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+  GetHealthEventDetailsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-health-event-details'
+      CodeUri: ../backend/src/handlers/monitoring/
+      Handler: get-health-event-details.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/get-health-event-details
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - get-health-event-details.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+  GetHealthEventsSummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-get-health-events-summary'
+      CodeUri: ../backend/src/handlers/monitoring/
+      Handler: get-health-events-summary.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/get-health-events-summary
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - get-health-events-summary.ts
+        External:
+          - '@prisma/client'
+          - '.prisma/client'
+  ManageHealthMonitoringConfigFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-manage-health-monitoring-config'
+      CodeUri: ../backend/src/handlers/monitoring/
+      Handler: manage-health-monitoring-config.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/functions/manage-health-monitoring-config
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - manage-health-monitoring-config.ts
         External:
           - '@prisma/client'
           - '.prisma/client'

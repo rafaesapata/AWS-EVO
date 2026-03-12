@@ -50,8 +50,10 @@ export function getRequestContext(): { requestId?: string; correlationId?: strin
  * CORS headers are ALWAYS included - uses '*' as fallback when origin is not provided
  */
 function getResponseHeaders(origin?: string, additionalHeaders?: Record<string, string>): Record<string, string> {
-  // Always generate CORS headers - use '*' as fallback for maximum compatibility
-  const corsHeaders = generateCORSHeaders(origin || '*', SECURE_CORS_CONFIG);
+  // Generate CORS headers from the actual request origin when available
+  // Falls back to configured allowed origins when no origin header is present
+  const corsOrigin = origin || '';
+  const corsHeaders = corsOrigin ? generateCORSHeaders(corsOrigin, SECURE_CORS_CONFIG) : generateCORSHeaders('', SECURE_CORS_CONFIG);
   
   const headers: Record<string, string> = {
     ...BASE_HEADERS,

@@ -110,6 +110,8 @@ export default function CloudTrailAudit() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showReprocessDialog, setShowReprocessDialog] = useState(false);
   const [periodOverlapInfo, setPeriodOverlapInfo] = useState<StartAnalysisResponse | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const EVENTS_PER_PAGE = 50;
 
   // Check if Azure is selected - show Azure Activity Logs instead
   const isAzure = selectedProvider === 'AZURE';
@@ -392,15 +394,18 @@ export default function CloudTrailAudit() {
   const chartData = useMemo(() => {
     if (!events || events.length === 0) return { byDate: [], byUser: [], byRisk: [], byEvent: [] };
 
-    // Group by date
+    // Group by date (or by hour for short periods)
+    const useHourlyGrouping = selectedTimeRange === '24h';
     const dateMap = new Map<string, { date: string; critical: number; high: number; medium: number; low: number; total: number }>();
     const userMap = new Map<string, { user: string; critical: number; high: number; medium: number; low: number; total: number }>();
     const riskCounts = { critical: 0, high: 0, medium: 0, low: 0 };
     const eventCounts = new Map<string, number>();
 
     events.forEach(event => {
-      // By date
-      const dateStr = formatDateBR(event.event_time, { day: '2-digit', month: '2-digit' });
+      // By date (or hour for 24h period)
+      const dateStr = useHourlyGrouping 
+        ? new Date(event.event_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')
+        : formatDateBR(event.event_time, { day: '2-digit', month: '2-digit' });
       if (!dateMap.has(dateStr)) {
         dateMap.set(dateStr, { date: dateStr, critical: 0, high: 0, medium: 0, low: 0, total: 0 });
       }
@@ -443,6 +448,10 @@ export default function CloudTrailAudit() {
     });
 
     const byDate = Array.from(dateMap.values()).sort((a, b) => {
+      if (useHourlyGrouping) {
+        // Sort by hour string (e.g., "08h00", "14h30")
+        return a.date.localeCompare(b.date);
+      }
       const [dayA, monthA] = a.date.split('/').map(Number);
       const [dayB, monthB] = b.date.split('/').map(Number);
       return monthA !== monthB ? monthA - monthB : dayA - dayB;
@@ -510,7 +519,8 @@ export default function CloudTrailAudit() {
       ].join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `cloudtrail_audit_${new Date().toISOString().split('T')[0]}.csv`;
@@ -830,10 +840,19 @@ export default function CloudTrailAudit() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="events" className="w-full">
-          <TabsList>
-            <TabsTrigger value="events">{t('cloudtrail.events', 'Events')}</TabsTrigger>
-            <TabsTrigger value="security">{t('cloudtrail.securityEvents', 'Security Events')}</TabsTrigger>
-            <TabsTrigger value="users">{t('cloudtrail.byUser', 'By User')}</TabsTrigger>
+          <TabsList className="glass">
+            <TabsTrigger value="events">
+              {t('cloudtrail.events', 'Events')}
+              {events && <Badge variant="secondary" className="ml-1.5 text-xs">{events.length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="security">
+              {t('cloudtrail.securityEvents', 'Security Events')}
+              {summary.securityEvents > 0 && <Badge variant="destructive" className="ml-1.5 text-xs">{summary.securityEvents}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="users">
+              {t('cloudtrail.byUser', 'By User')}
+              {chartData.byUser.length > 0 && <Badge variant="secondary" className="ml-1.5 text-xs">{chartData.byUser.length}</Badge>}
+            </TabsTrigger>
             <TabsTrigger value="history">
               <History className="h-4 w-4 mr-1" />
               {t('cloudtrail.history', 'History')}
@@ -852,8 +871,9 @@ export default function CloudTrailAudit() {
                     {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
                   </div>
                 ) : events && events.length > 0 ? (
-                  <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                    {events.slice(0, 100).map((event) => (
+                  <div className="space-y-3">
+                    <div className="max-h-[600px] overflow-y-auto space-y-3">
+                    {events.slice((currentPage - 1) * EVENTS_PER_PAGE, currentPage * EVENTS_PER_PAGE).map((event) => (
                       <div key={event.id} className="border rounded-lg p-4 space-y-2">
                         <div className="flex items-start justify-between">
                           <div className="space-y-1">
@@ -905,6 +925,40 @@ export default function CloudTrailAudit() {
                         )}
                       </div>
                     ))}
+                    </div>
+                    {/* Pagination Controls */}
+                    {events.length > EVENTS_PER_PAGE && (
+                      <div className="flex items-center justify-between pt-4 border-t">
+                        <span className="text-sm text-muted-foreground">
+                          {t('cloudtrail.showingEvents', 'Showing {{from}}-{{to}} of {{total}}', {
+                            from: (currentPage - 1) * EVENTS_PER_PAGE + 1,
+                            to: Math.min(currentPage * EVENTS_PER_PAGE, events.length),
+                            total: events.length,
+                          })}
+                        </span>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                          >
+                            {t('cloudtrail.previous', 'Previous')}
+                          </Button>
+                          <span className="flex items-center px-3 text-sm">
+                            {currentPage} / {Math.ceil(events.length / EVENTS_PER_PAGE)}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.min(Math.ceil(events.length / EVENTS_PER_PAGE), p + 1))}
+                            disabled={currentPage >= Math.ceil(events.length / EVENTS_PER_PAGE)}
+                          >
+                            {t('cloudtrail.next', 'Next')}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12">

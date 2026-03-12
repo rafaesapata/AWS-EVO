@@ -1,5 +1,26 @@
 {
   "mcpServers": {
+    "uds-mcp-server": {
+      "type": "http",
+      "url": "https://server.mcp.udstec.io/mcp",
+      "headers": {
+        "x-api-key": "wvMLdW1k-vugYjhtlD0Cf8YdDIFg8wUM9z1yconKB2E"
+      },
+      "autoApprove": [
+        "mcp_health_check",
+        "mcp_echo",
+        "mcp_aws_info",
+        "uds_layout_standards",
+        "uds_code_analysis",
+        "uds_dev_standards",
+        "uds_no_mock_data",
+        "uds_autonomous_mode",
+        "uds_token_optimization",
+        "uds_gitlab_standards",
+        "test-strategy-guide",
+        "test-quality-gates"
+      ]
+    },
     "postgres-production": {
       "command": "npx",
       "args": [

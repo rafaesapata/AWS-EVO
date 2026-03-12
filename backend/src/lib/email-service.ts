@@ -104,6 +104,8 @@ export class EmailService {
   private sesClient: SESClient;
   private fromAddress: EmailAddress;
   private templates: Map<string, EmailTemplate> = new Map();
+  private static readonly MAX_RETRIES = 3;
+  private static readonly BASE_DELAY_MS = 500;
 
   constructor(
     fromAddress?: EmailAddress,
@@ -119,6 +121,32 @@ export class EmailService {
     this.sesClient = createSESClient();
     
     this.loadDefaultTemplates();
+  }
+
+  /**
+   * Retry helper with exponential backoff for transient SES errors
+   */
+  private async withRetry<T>(operation: string, fn: () => Promise<T>): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= EmailService.MAX_RETRIES; attempt++) {
+      try {
+        return await fn();
+      } catch (err: unknown) {
+        lastError = err;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const errName = err instanceof Error ? (err as any).name || err.constructor?.name : '';
+        // Retry on throttling, transient, and connection errors
+        const isRetryable = /Throttling|ServiceUnavailable|RequestTimeout|TooManyRequests|ECONNRESET|ETIMEDOUT|ECONNREFUSED|socket hang up/i.test(errMsg + errName);
+        if (attempt < EmailService.MAX_RETRIES && isRetryable) {
+          const delay = EmailService.BASE_DELAY_MS * Math.pow(2, attempt - 1);
+          logger.warn(`Email ${operation} transient error, retry ${attempt}/${EmailService.MAX_RETRIES} in ${delay}ms`, { error: errMsg });
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        break;
+      }
+    }
+    throw lastError;
   }
 
   /**
@@ -165,18 +193,20 @@ export class EmailService {
         Tags: options.tags ? Object.entries(options.tags).map(([Name, Value]) => ({ Name, Value })) : undefined,
       });
 
-      const response = await this.sesClient.send(command);
+      return await this.withRetry('sendEmail', async () => {
+        const response = await this.sesClient.send(command);
 
-      logger.info('Email sent successfully', {
-        messageId: response.MessageId,
-        to: toAddresses.map(addr => addr.email),
-        subject: options.subject,
+        logger.info('Email sent successfully', {
+          messageId: response.MessageId,
+          to: toAddresses.map(addr => addr.email),
+          subject: options.subject,
+        });
+
+        return { messageId: response.MessageId! };
       });
 
-      return { messageId: response.MessageId! };
-
     } catch (error) {
-      logger.error('Failed to send email', error as Error, {
+      logger.error('Failed to send email after retries', error as Error, {
         to: this.normalizeAddresses(options.to).map(addr => addr.email),
         subject: options.subject,
       });
@@ -260,7 +290,7 @@ export class EmailService {
       Tags: options.tags ? Object.entries(options.tags).map(([Name, Value]) => ({ Name, Value })) : undefined,
     });
 
-    const response = await this.sesClient.send(command);
+    const response = await this.withRetry('sendRawEmail', () => this.sesClient.send(command));
 
     logger.info('Raw email sent successfully', {
       messageId: response.MessageId,

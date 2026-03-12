@@ -77,6 +77,13 @@ interface SecurityPosture {
     low: number;
     total: number;
   };
+  healthEvents: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    total: number;
+  };
   trend: {
     newLast7Days: number;
     resolvedLast7Days: number;
@@ -600,6 +607,13 @@ async function getSecurityData(
         low: 0,
         total: 0
       },
+      healthEvents: {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        total: 0,
+      },
       trend: {
         newLast7Days: 0,
         resolvedLast7Days: 0,
@@ -643,6 +657,25 @@ async function getSecurityData(
 
   const totalFindings = Object.values(counts).reduce((a, b) => a + b, 0);
 
+  // Health Events count by severity (open events only)
+  const healthEventsBySeverity = await prisma.awsHealthEvent.groupBy({
+    by: ['severity'],
+    where: {
+      organization_id: organizationId,
+      status_code: 'open',
+    },
+    _count: true,
+  });
+
+  const healthCounts = { critical: 0, high: 0, medium: 0, low: 0 };
+  healthEventsBySeverity.forEach((h: any) => {
+    const sev = h.severity?.toLowerCase() || '';
+    if (sev in healthCounts) {
+      healthCounts[sev as keyof typeof healthCounts] = h._count;
+    }
+  });
+  const totalHealthEvents = Object.values(healthCounts).reduce((a, b) => a + b, 0);
+
   // Calculate security score (normalized)
   // If no findings, score is 100 (perfect), otherwise calculate based on severity
   let securityScore = 100;
@@ -677,6 +710,10 @@ async function getSecurityData(
     findings: {
       ...counts,
       total: totalFindings
+    },
+    healthEvents: {
+      ...healthCounts,
+      total: totalHealthEvents,
     },
     trend: {
       newLast7Days: newFindings,

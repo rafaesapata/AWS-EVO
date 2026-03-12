@@ -202,11 +202,11 @@ export async function handler(
       const { attachmentId } = validation.data;
 
       const attachment = await prisma.ticketAttachment.findFirst({
-        where: { id: attachmentId },
+        where: { id: attachmentId, ticket: { organization_id: organizationId } },
         include: { ticket: true },
       });
 
-      if (!attachment || attachment.ticket.organization_id !== organizationId) {
+      if (!attachment) {
         return error('Attachment not found', 404, undefined, origin);
       }
 
@@ -251,11 +251,11 @@ export async function handler(
       const { attachmentId } = validation.data;
 
       const attachment = await prisma.ticketAttachment.findFirst({
-        where: { id: attachmentId, is_deleted: false },
+        where: { id: attachmentId, is_deleted: false, ticket: { organization_id: organizationId } },
         include: { ticket: true },
       });
 
-      if (!attachment || attachment.ticket.organization_id !== organizationId) {
+      if (!attachment) {
         return error('Attachment not found', 404, undefined, origin);
       }
 
@@ -288,11 +288,11 @@ export async function handler(
       const { attachmentId } = validation.data;
 
       const attachment = await prisma.ticketAttachment.findFirst({
-        where: { id: attachmentId, is_deleted: false },
+        where: { id: attachmentId, is_deleted: false, ticket: { organization_id: organizationId } },
         include: { ticket: true },
       });
 
-      if (!attachment || attachment.ticket.organization_id !== organizationId) {
+      if (!attachment) {
         return error('Attachment not found', 404, undefined, origin);
       }
 
