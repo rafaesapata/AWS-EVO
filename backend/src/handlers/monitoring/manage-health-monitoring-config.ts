@@ -97,8 +97,8 @@ export async function handler(
       logAuditAsync({
         organizationId,
         userId: user.sub,
-        action: 'HEALTH_MONITORING_CONFIG_UPDATE' as any,
-        resourceType: 'health_monitoring_config' as any,
+        action: 'HEALTH_MONITORING_CONFIG_UPDATE',
+        resourceType: 'health_monitoring_config',
         resourceId: config.id,
         details: { enabled, autoTicketSeverities, pollingFrequencyMinutes },
         ipAddress: getIpFromEvent(event),

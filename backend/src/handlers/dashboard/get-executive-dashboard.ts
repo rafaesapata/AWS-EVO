@@ -1332,9 +1332,9 @@ function calculateExecutiveSummary(
     potentialSavings: financial.savings.potential,
     uptimeSLA: operations.uptime.current,
     activeAlerts: {
-      critical: security.findings.critical + operations.alerts.count.critical,
-      high: security.findings.high + operations.alerts.count.high,
-      medium: security.findings.medium
+      critical: security.findings.critical + security.healthEvents.critical + operations.alerts.count.critical,
+      high: security.findings.high + security.healthEvents.high + operations.alerts.count.high,
+      medium: security.findings.medium + security.healthEvents.medium
     }
   };
 }

@@ -83,7 +83,9 @@ export type AuditAction =
   | 'OVERHEAD_UPDATED'
   | 'COMMUNICATION_RESEND'
   | 'TV_TOKEN_CREATE'
-  | 'TV_TOKEN_DELETE';
+  | 'TV_TOKEN_DELETE'
+  | 'HEALTH_EVENT_TICKET_CREATE'
+  | 'HEALTH_MONITORING_CONFIG_UPDATE';
 
 export type AuditResourceType =
   | 'user'
@@ -120,7 +122,9 @@ export type AuditResourceType =
   | 'tag_auto_rule'
   | 'organization_overhead'
   | 'communication'
-  | 'tv_token';
+  | 'tv_token'
+  | 'health_monitoring_config'
+  | 'health_event';
 
 export interface AuditLogParams {
   organizationId: string;

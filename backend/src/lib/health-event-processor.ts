@@ -280,7 +280,8 @@ export async function processHealthEvent(
   try {
     logAuditAsync({
       organizationId: event.organizationId,
-      action: 'TICKET_CREATE' as any,
+      userId: 'system:health-monitor',
+      action: 'TICKET_CREATE',
       resourceType: 'ticket',
       resourceId: ticket.id,
       details: {

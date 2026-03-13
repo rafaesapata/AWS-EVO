@@ -127,18 +127,26 @@ export async function handler(
               credentials: toAwsCredentials(awsCreds),
             });
 
-            // Describe events
-            const describeEventsResponse = await healthClient.send(
-              new DescribeEventsCommand({
-                filter: {
-                  eventTypeCategories: ['accountNotification', 'issue'],
-                  eventStatusCodes: ['open', 'upcoming', 'closed'],
-                },
-                maxResults: MAX_EVENTS_PER_DESCRIBE,
-              })
-            );
+            // Describe events (with pagination)
+            const events: any[] = [];
+            let nextToken: string | undefined;
+            do {
+              const describeEventsResponse = await healthClient.send(
+                new DescribeEventsCommand({
+                  filter: {
+                    eventTypeCategories: ['accountNotification', 'issue'],
+                    eventStatusCodes: ['open', 'upcoming', 'closed'],
+                  },
+                  maxResults: MAX_EVENTS_PER_DESCRIBE,
+                  nextToken,
+                })
+              );
+              if (describeEventsResponse.events) {
+                events.push(...describeEventsResponse.events);
+              }
+              nextToken = describeEventsResponse.nextToken;
+            } while (nextToken);
 
-            const events = describeEventsResponse.events || [];
             orgResult.eventsFound += events.length;
 
             if (events.length === 0) continue;

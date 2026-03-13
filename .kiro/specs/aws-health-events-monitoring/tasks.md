@@ -46,7 +46,7 @@ Implementação incremental: Prisma models → libs (classifier, processor) → 
     - 6 testes unitários: CREDENTIALS_EXPOSED→critical, COMPROMISED→critical, RISK+accountNotification→high, issue+open→medium, scheduledChange→low, isCredentialExposure→true
     - AAA pattern, naming: `it('should classify X as Y when Z')`
 
-- [-] 3. Implementar health-event-processor.ts
+- [x] 3. Implementar health-event-processor.ts
   - [x] 3.1 Criar `backend/src/lib/health-event-processor.ts`
     - Exportar interfaces `ProcessableEvent`, `ProcessingConfig`, `ProcessingResult`
     - Implementar `processHealthEvent(prisma, event, config): Promise<ProcessingResult>`
@@ -78,13 +78,13 @@ Implementação incremental: Prisma models → libs (classifier, processor) → 
     - 7 testes unitários: título correto, priority=urgent, instruções remediação, skip quando tem ticket, Alert criado para critical, email enviado para critical/high, CommunicationLog para credential exposure
     - AAA pattern, mock Prisma/EmailService/audit-service, naming Given-When-Then
 
-- [ ] 4. Checkpoint — Verificar libs
+- [x] 4. Checkpoint — Verificar libs
   - Ensure all tests pass, ask the user if questions arise.
   - Verificar que `health-event-classifier.ts` e `health-event-processor.ts` compilam sem erros
   - Executar `npm run build --prefix backend` para validar TypeScript
 
-- [ ] 5. Implementar health-monitor.ts (handler job agendado)
-  - [~] 5.1 Criar `backend/src/handlers/monitoring/health-monitor.ts`
+- [x] 5. Implementar health-monitor.ts (handler job agendado)
+  - [x] 5.1 Criar `backend/src/handlers/monitoring/health-monitor.ts`
     - Handler EventBridge scheduled (padrão `scheduled-scan-executor.ts`)
     - Imports: `logger` de `../../lib/logger.js`, `getPrismaClient` de `../../lib/database.js`, `resolveAwsCredentials`/`assumeRole` de `../../lib/aws-helpers.js`, `classifySeverity`/`isCredentialExposure` de `../../lib/health-event-classifier.js`, `processHealthEvent` de `../../lib/health-event-processor.js`
     - Buscar organizações com `HealthMonitoringConfig.enabled = true`
@@ -109,8 +109,8 @@ Implementação incremental: Prisma models → libs (classifier, processor) → 
     - 2 testes unitários: continue processing when one account fails, skip org with no active AWS accounts
     - AAA pattern, mock AWS SDK/Prisma, naming Given-When-Then
 
-- [ ] 6. Implementar handlers de API de consulta
-  - [~] 6.1 Criar `backend/src/handlers/monitoring/get-health-events.ts`
+- [x] 6. Implementar handlers de API de consulta
+  - [x] 6.1 Criar `backend/src/handlers/monitoring/get-health-events.ts`
     - Handler POST `/api/functions/get-health-events`
     - Imports: `AuthorizedEvent`, `success`/`error`/`corsOptions` de `response.js`, `getUserFromEvent`/`getOrganizationId` de `auth.js`, `getPrismaClient`, `logger` de `logger.js`
     - Body params: limit (default 20, max 100), offset (default 0), severity, status_code, aws_account_id, is_credential_exposure
@@ -118,14 +118,14 @@ Implementação incremental: Prisma models → libs (classifier, processor) → 
     - Query `AwsHealthEvent` filtrado por `organization_id`, com paginação e filtros opcionais
     - Retornar `{ events, total, limit, offset }`
     - _Requirements: 5.1, 5.2_
-  - [~] 6.2 Criar `backend/src/handlers/monitoring/get-health-event-details.ts`
+  - [x] 6.2 Criar `backend/src/handlers/monitoring/get-health-event-details.ts`
     - Handler POST `/api/functions/get-health-event-details`
     - Body params: id (UUID)
     - Query `AwsHealthEvent` por id + organization_id, incluir `RemediationTicket` associado via remediation_ticket_id
     - Retornar 404 se não encontrado ou de outra org
     - Retornar `{ event, ticket }`
     - _Requirements: 5.3_
-  - [~] 6.3 Criar `backend/src/handlers/monitoring/get-health-events-summary.ts`
+  - [x] 6.3 Criar `backend/src/handlers/monitoring/get-health-events-summary.ts`
     - Handler POST `/api/functions/get-health-events-summary`
     - Query agregada: contagem por severidade, openEvents (status_code='open'), totalTicketsCreated (remediation_ticket_id not null), credentialExposures (is_credential_exposure=true), total
     - Filtrado por `organization_id`
@@ -145,8 +145,8 @@ Implementação incremental: Prisma models → libs (classifier, processor) → 
     - `get-health-events-summary.test.ts`: return zero counts when no events exist
     - AAA pattern, mock Prisma, naming Given-When-Then
 
-- [ ] 7. Implementar manage-health-monitoring-config.ts
-  - [~] 7.1 Criar `backend/src/handlers/monitoring/manage-health-monitoring-config.ts`
+- [x] 7. Implementar manage-health-monitoring-config.ts
+  - [x] 7.1 Criar `backend/src/handlers/monitoring/manage-health-monitoring-config.ts`
     - Handler POST `/api/functions/manage-health-monitoring-config`
     - Imports: `AuthorizedEvent`, `success`/`error`/`corsOptions`, `getUserFromEvent`/`getOrganizationId`, `getPrismaClient`, `logger`, `logAuditAsync`/`getIpFromEvent`/`getUserAgentFromEvent` de `audit-service.js`
     - Action `get`: retornar config da org (criar com defaults se não existir)
@@ -162,12 +162,12 @@ Implementação incremental: Prisma models → libs (classifier, processor) → 
     - 4 testes unitários: return 400 when severity invalid, return 400 when polling<=0, create default config on first GET, register audit log on update
     - AAA pattern, mock Prisma/audit-service, naming Given-When-Then
 
-- [ ] 8. Checkpoint — Verificar handlers
+- [x] 8. Checkpoint — Verificar handlers
   - Ensure all tests pass, ask the user if questions arise.
   - Executar `npm run build --prefix backend` para validar compilação de todos os handlers
 
-- [ ] 9. Integração com dashboard executivo
-  - [~] 9.1 Modificar `backend/src/handlers/dashboard/get-executive-dashboard.ts`
+- [x] 9. Integração com dashboard executivo
+  - [x] 9.1 Modificar `backend/src/handlers/dashboard/get-executive-dashboard.ts`
     - Adicionar campo `healthEvents` à interface `SecurityPosture` (ao lado de `findings`)
     - Estrutura: `{ critical: number, high: number, medium: number, low: number, total: number }`
     - Na função `getSecurityData()`, adicionar query: `SELECT severity, COUNT(*) FROM aws_health_events WHERE organization_id = $1 AND status_code = 'open' GROUP BY severity`
@@ -178,8 +178,8 @@ Implementação incremental: Prisma models → libs (classifier, processor) → 
     - Gerar conjuntos de AwsHealthEvent com severidades variadas, verificar contagens corretas e total = soma
     - **Validates: Requirements 4.3**
 
-- [ ] 10. Adicionar Lambdas ao SAM template
-  - [~] 10.1 Adicionar 5 funções Lambda ao `sam/production-lambdas-only.yaml`
+- [x] 10. Adicionar Lambdas ao SAM template
+  - [x] 10.1 Adicionar 5 funções Lambda ao `sam/production-lambdas-only.yaml`
     - `HealthMonitorFunction`: health-monitor.ts, Timeout 300, MemorySize 512, Schedule rate(15 minutes), rota POST /api/functions/health-monitor
     - `GetHealthEventsFunction`: get-health-events.ts, Timeout 30, MemorySize 256, rota POST /api/functions/get-health-events
     - `GetHealthEventDetailsFunction`: get-health-event-details.ts, Timeout 30, MemorySize 256, rota POST /api/functions/get-health-event-details
@@ -189,16 +189,16 @@ Implementação incremental: Prisma models → libs (classifier, processor) → 
     - CodeUri: `../backend/src/handlers/monitoring/`, Role: `!GetAtt LambdaExecutionRole.Arn`, ApiId: `!Ref HttpApi`
     - _Requirements: 1.1, 5.1, 5.3, 5.4, 6.1_
 
-- [ ] 11. Build verification
-  - [~] 11.1 Executar `npm run build --prefix backend`
+- [x] 11. Build verification
+  - [x] 11.1 Executar `npm run build --prefix backend`
     - Verificar que todos os novos arquivos compilam sem erros TypeScript
     - _Requirements: 1.1, 2.1, 3.1, 5.1, 6.1_
-  - [~] 11.2 Executar `npx tsx scripts/validate-lambda-imports.ts`
+  - [x] 11.2 Executar `npx tsx scripts/validate-lambda-imports.ts`
     - Verificar que todos os imports dos novos handlers resolvem corretamente
     - Verificar ausência de dependências circulares
     - _Requirements: 1.1, 2.1, 3.1, 5.1, 6.1_
 
-- [ ] 12. Final checkpoint — Validação completa
+- [x] 12. Final checkpoint — Validação completa
   - Ensure all tests pass, ask the user if questions arise.
   - Confirmar que todos os handlers compilam, imports validam, e SAM template está correto
 

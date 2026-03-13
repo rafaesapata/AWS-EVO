@@ -31,15 +31,15 @@ export async function handler(
       return badRequest('Invalid JSON body', undefined, origin);
     }
 
-    const limit = Math.min(Math.max(body.limit ?? 20, 1), 100);
-    const offset = Math.max(body.offset ?? 0, 0);
-
     if (body.limit !== undefined && (typeof body.limit !== 'number' || body.limit <= 0 || body.limit > 100)) {
       return badRequest('limit must be a number between 1 and 100', undefined, origin);
     }
     if (body.offset !== undefined && (typeof body.offset !== 'number' || body.offset < 0)) {
       return badRequest('offset must be a non-negative number', undefined, origin);
     }
+
+    const limit = Math.min(Math.max(body.limit ?? 20, 1), 100);
+    const offset = Math.max(body.offset ?? 0, 0);
 
     const where: any = { organization_id: organizationId };
 
